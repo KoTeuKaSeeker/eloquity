@@ -2,6 +2,7 @@
 from dotenv import load_dotenv
 import os
 from src.eloquity_ai import EloquityAI
+import yaml
 
 
 if __name__ == "__main__":
@@ -12,6 +13,8 @@ if __name__ == "__main__":
         conversation = file.read()
 
     model = EloquityAI(api_key=api_key)
-    tasks_str = model.generate_task_string(conversation)
-    
-    print(tasks_str)
+
+    assignees = model.generate_assignees(conversation)
+
+    for assignee in assignees:
+        print(assignee)

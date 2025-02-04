@@ -1,5 +1,29 @@
 import requests
 import re
+from datetime import datetime
+from typing import List
+import yaml
+
+class Task:
+    def __init__(self, content: str, deadline: str):
+        self.content = content
+        # self.deadline = datetime.strptime(deadline, "%Y-%m-%d %H:%M")
+        self.deadline = deadline
+    
+    def __str__(self):
+        return f"({self.deadline}) {self.content}"
+
+
+class Assignee:
+    def __init__(self, name: str, tasks: List[Task]):
+        self.name = name
+        self.tasks = tasks
+    
+    def __str__(self):
+        output = f"{self.name}:\n"
+        for task in self.tasks:
+            output += f"\t{task}\n"
+        return output
 
 
 class EloquityAI:
@@ -17,7 +41,7 @@ class EloquityAI:
             print(f"Error: File '{file_path}' not found.")
             return ""
 
-    def get_model_response(self, messages):
+    def get_model_response(self, message):
         headers = {
             "Authorization": self.api_key,
             "Content-Type": "application/json"
@@ -25,7 +49,7 @@ class EloquityAI:
         data = {
             "model": "gpt-4o",
             "max_tokens": 2000,
-            "messages": messages
+            "messages": [{"role": "user", "content": message}]
         }
 
         try:
@@ -36,16 +60,64 @@ class EloquityAI:
         
         content = response.json()["choices"][0]["message"]["content"]
 
-        return {"role": "assistant", "content": content}
+        return content
+    
+    def generate_raw_task_str(self, conversation_str: str) -> str:
+        content = self.task_assigment_prefix + conversation_str
+        task_str = self.get_model_response(content)
+
+        return task_str
+    
+    def generate_assignees(self, conversation_str: str) -> List[Assignee]:
+        content = self.task_assigment_prefix + conversation_str
+        response = self.get_model_response(content)
+        assignee_dict = yaml.safe_load(response)
+
+        name_dict = self.identify_assignee_names(conversation_str)
+
+        assignee_list: List[Assignee] = []
+        for assignee_name, tasks in assignee_dict.items():
+            task_list: List[Task] = []
+            for task_dict in tasks:
+                task = Task(task_dict["task"], task_dict["time"])
+                task_list.append(task)
+            
+            assignee = Assignee(name_dict[assignee_name], task_list)
+            assignee_list.append(assignee)
+
+        return assignee_list
+    
+    def identify_assignee_names(self, conversation_str: str) -> dict:
+        content = self.name_identification_prefix + conversation_str
+        response = self.get_model_response(content)
+        name_dict = yaml.safe_load(response)
+
+        return name_dict
+
+    def extract_assignees(self, raw_task_str: str) -> Assignee:
+        # task_str = self.generate_raw_task_str(conversation_str)
+
+        speakers = dict(re.findall(r"(\[-SPEAKER_\d+-\]):\s*(.*)", raw_task_str))
+
+        assignees: List[Assignee] = []
+        for speaker_name, tasks in speakers.items():
+            task_pattern = r"\[TIME: '(.*?)'\]\s*(.*)"
+            tasks_found = re.findall(task_pattern, tasks)
+
+            task_list: List[Task] = []
+            for time, task in tasks_found:
+                task = Task(task.strip(), time)
+                task_list.append(task)
+            
+            assignee = Assignee(speaker_name, task_list)
+            assignees.append(assignee)
+
+        return assignees
+        
     
     def map_speaker_names(self, conversation_str: str):
         content = self.name_identification_prefix + conversation_str
-
-        messages = [
-            {"role": "user", "content": content}
-        ]
- 
-        mapping_str = self.get_model_response(messages)['content']
+        mapping_str = self.get_model_response(content)
 
         speakers = set(re.findall(r"\[-SPEAKER_\d+-\]", conversation_str))
         mapping = dict(re.findall(r"(\[-SPEAKER_\d+-\]):\s*(.*)", mapping_str))
@@ -58,11 +130,7 @@ class EloquityAI:
     def generate_tasks_and_assign_names(self, conversation_str: str, speakers_dict: dict):
         content = self.task_assigment_prefix + conversation_str
 
-        messages = [
-            {"role": "user", "content": content}
-        ]
-
-        mapping_str = self.get_model_response(messages)['content']
+        mapping_str = self.get_model_response(content)
 
         def replace(match):
             speaker_tag = match.group(0)

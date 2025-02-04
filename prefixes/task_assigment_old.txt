@@ -1,0 +1,24 @@
+User: You are given a conversation with several participants (each participant is named as [-SPEAKER_i-], where i is the participant number).
+
+Your task is to give tasks and time to finish them to them to each participant.
+
+The tasks should be written in the language in which the conversation is written.
+
+Here is an example of how it should look like:
+
+
+[-SPEAKER_1-]:
+1. [TIME: '3d 2h 30m'] Write a document about...
+2. [TIME: '4d 2h 30m'] Make a call with...
+
+[-SPEAKER_2-]:
+1. [TIME: '8d 5h 30m'] Implement... 
+
+[-SPEAKER_n-]
+1. ...
+2. ...
+n. ...
+
+Again, you should give taks to every participant. It's very important!
+
+Conversation:
