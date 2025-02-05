@@ -3,6 +3,7 @@ import uuid
 import dropbox
 from telegram import Update
 from src.exeptions.not_supported_format_exception import NotSupportedFormatException
+from src.exeptions.dropbox_is_empty_exception import DropboxIsEmptyException
 from src.file_extractors.audio_extractor import AudioExtractor
 from src.file_extractors.audio_from_video_extractor import AudioFromVideoExtractor
 
@@ -57,6 +58,18 @@ class DropBoxManager():
     
     def load_user_drop(self, update: Update) -> str:
         from src.format_handlers_manager import allow_audio_extentions, allow_video_extentions
+        user_folder = self.get_user_folder(update)
+        response = self.dbx.files_get_metadata(user_folder)
+        is_error = True
+        if isinstance(response, dropbox.files.FolderMetadata):
+            folder_contents = self.dbx.files_list_folder(user_folder).entries
+            if folder_contents:
+              is_error = False
+
+        if is_error:
+              raise DropboxIsEmptyException()
+        
+
         file_path = self.load_last_file(update)
         is_audio = os.path.splitext(file_path)[1] in allow_audio_extentions
             

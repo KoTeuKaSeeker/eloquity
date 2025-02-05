@@ -14,6 +14,7 @@ from src.format_handlers_manager import FormatHandlersManager
 from src.audio_transcriber import AudioTranscriber
 from src.exeptions.unknown_error_exception import UnknownErrorException
 from src.exeptions.not_supported_format_exception import NotSupportedFormatException
+from src.exeptions.dropbox_is_empty_exception import DropboxIsEmptyException
 from src.exeptions.too_big_file_exception import TooBigFileException
 from src.eloquity_ai import EloquityAI
 from src.format_handlers_manager import allow_audio_extentions, allow_video_extentions
@@ -40,9 +41,15 @@ async def custom_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("This is a custom command!")
 
 async def from_dropbox_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    file_path = drop_box_manager.load_user_drop(update)
-    tasks_str = extract_tasks_from_audio_file(file_path)
-    await update.message.reply_text(tasks_str)
+    try:
+        file_path = drop_box_manager.load_user_drop(update)
+        tasks_str = extract_tasks_from_audio_file(file_path)
+        await update.message.reply_text(tasks_str)
+    except DropboxIsEmptyException as e:
+        await update.message.reply_text(e.open_dropbox_request(update, drop_box_manager))
+        return
+    except Exception as e:
+        await update.message.reply_text(e)
 
 
 def extract_tasks_from_audio_file(audio_path: str):
@@ -54,9 +61,12 @@ def extract_tasks_from_audio_file(audio_path: str):
 
 
 async def transcribe_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    update.message.chat.send_action("typing")
     handlers_manager: FormatHandlersManager = FormatHandlersManager(AUDIO_DIR, VIDEO_DIR, ".wav")
     try:
         audio_path = await handlers_manager.load_audio(update, context)
+        await update.message.reply_text("⏮️ Файл был успешно загружен. Идёт обработка звука и анализ текста... 🔃")
+        update.message.chat.send_action("typing")
     except TooBigFileException as e:
         await update.message.reply_text(e.open_dropbox_response(update, drop_box_manager))
         return
