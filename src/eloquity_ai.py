@@ -65,10 +65,8 @@ class EloquityAI:
         return content
     
     def get_delta_time_from_str(self, time_string):
-        # Regex pattern to match days, hours, minutes, and seconds
         pattern = r"(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?"
         
-        # Search for all matches
         matches = re.match(pattern, time_string)
         
         if matches:
@@ -77,16 +75,10 @@ class EloquityAI:
             minutes = int(matches.group(3) or 0)
             seconds = int(matches.group(4) or 0)
             
-            # Return a timedelta object
             return timedelta(days=days, hours=hours, minutes=minutes, seconds=seconds)
         
-        return timedelta()  # Return 0 if no match
+        return timedelta()
     
-    def generate_raw_task_str(self, conversation_str: str) -> str:
-        content = self.task_assigment_prefix + conversation_str
-        task_str = self.get_model_response(content)
-
-        return task_str
     
     def generate_assignees(self, conversation_str: str) -> List[Assignee]:
         content = self.task_assigment_prefix + conversation_str
@@ -121,24 +113,6 @@ class EloquityAI:
         name_dict = yaml.safe_load(response)
 
         return name_dict
-
-    def extract_assignees(self, raw_task_str: str) -> Assignee:
-        speakers = dict(re.findall(r"(\[-SPEAKER_\d+-\]):\s*(.*)", raw_task_str))
-
-        assignees: List[Assignee] = []
-        for speaker_name, tasks in speakers.items():
-            task_pattern = r"\[TIME: '(.*?)'\]\s*(.*)"
-            tasks_found = re.findall(task_pattern, tasks)
-
-            task_list: List[Task] = []
-            for time, task in tasks_found:
-                task = Task(task.strip(), time)
-                task_list.append(task)
-            
-            assignee = Assignee(speaker_name, task_list)
-            assignees.append(assignee)
-
-        return assignees
         
     
     def map_speaker_names(self, conversation_str: str):
@@ -152,25 +126,6 @@ class EloquityAI:
         speakers_dict = {speaker: mapping.get(speaker, "Unknown") for speaker in speakers}
 
         return speakers_dict
-    
-    def generate_tasks_and_assign_names(self, conversation_str: str, speakers_dict: dict):
-        content = self.task_assigment_prefix + conversation_str
-
-        mapping_str = self.get_model_response(content)
-
-        def replace(match):
-            speaker_tag = match.group(0)
-            return speakers_dict.get(speaker_tag, speaker_tag)
-        
-        tasks_str = re.sub(r"\[-SPEAKER_\d+-\]", replace, mapping_str)
-
-        return tasks_str
-    
-    def generate_task_string(self, conversation_str: str) -> str:
-        speakers_dict = self.map_speaker_names(conversation_str)
-        tasks_str = self.generate_tasks_and_assign_names(conversation_str, speakers_dict)
-
-        return tasks_str
     
     def add_task_table(self, doc, assignee):
         table = doc.add_table(rows=1, cols=2)
