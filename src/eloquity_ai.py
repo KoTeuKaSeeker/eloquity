@@ -81,11 +81,17 @@ class EloquityAI:
     
     
     def generate_assignees(self, conversation_str: str) -> List[Assignee]:
+        name_dict = self.identify_assignee_names(conversation_str)
+
+        def replace_speakers(text, speakers):
+            pattern = re.compile(r'\b(speaker_\d+)\b')  # Match words like speaker_0
+            return pattern.sub(lambda match: f"[{speakers.get(match.group(1), match.group(1))}]", text)
+        
+        conversation_str = replace_speakers(conversation_str, name_dict)
+        
         content = self.task_assigment_prefix + conversation_str
         response = self.get_model_response(content)
         assignee_dict = yaml.safe_load(response)
-
-        name_dict = self.identify_assignee_names(conversation_str)
 
         current_datetime = datetime.now()
 
@@ -97,7 +103,7 @@ class EloquityAI:
                 task = Task(task_dict["task"], current_datetime + delta)
                 task_list.append(task)
             
-            assignee = Assignee(name_dict[assignee_name], task_list)
+            assignee = Assignee(assignee_name, task_list)
             assignee_list.append(assignee)
 
         return assignee_list

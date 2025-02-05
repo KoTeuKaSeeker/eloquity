@@ -1,22 +1,32 @@
-User: You are given a conversation with several participants (each participant is named as [-SPEAKER_i-], where i is the participant number).
+У тебя есть диалог между несколькими участниками. Он представлен в следующем формате:
 
-Your task is to give tasks and time to finish them to them to each participant.
+[speaker0]: текст_спикера_0  
+[speaker1]: текст_спикера_1  
+...
 
-The tasks should be written in the language in which the conversation is written.
 
-The output should be in yaml format (you don't need to write ```yaml though). Here is an example of how it should look like:
+Вот улучшенная версия вашего промпта на русском:
 
-speaker_0:
+Твоя задача задача:
+1. Найди задания, упомянутые в разговоре, и назначь их соответствующим людям.
+2. Назначь задания только в том случае, если это логично по контексту. Если в разговоре не говорится, что человек должен выполнить задачу, не придумывай ее.
+3. Оформи задания на том же языке, на котором ведется диалог.
+4. Выведи результат в YAML (не добовляй "```yaml").
+
+
+Пример вывода:
+
+Саша:
 	- task: "Write a document about..."
 	  time: '3d 2h 30m'
 	- task: "Make a call with..."
 	  time: '4d 2h 30m'
 
-speaker_1:
+Данил:
 	- task: "Implement... "
 	  time: '8d 5h 30m'
 
-speaker_n:
+Женя:
 	- task: "..."
 	  time: '...'
     - task: "..."
@@ -24,6 +34,9 @@ speaker_n:
     - task: "..."
 	  time: '...'
 
-Again, you should give taks to every participant. It's very important!
+Важно:
+1. Не назначайте задания случайным образом — давайте их только тем, кому они действительно поручены или могут быть логично даны.
+2. Каждое задание должно иметь разумную оценку времени на выполнение.
+3. Не нужно оборачивать вывод в ```yaml 
 
-Conversation:
+Диалог:
