@@ -1,10 +1,18 @@
 import os
 from telegram import Update
 from pydub import AudioSegment
+import dropbox
 from src.exeptions.unknown_error_exception import UnknownErrorException
 from src.format_handlers.audio_handlers.audio_format_handler import AudioFormatHandler
+from src.file_extractors.audio_extractor import AudioExtractor
 
 class RecognizedAudioFormatHandler(AudioFormatHandler):
+    audio_extractor: AudioExtractor
+
+    def __init__(self, audio_dir: str, audio_extention_to_save: str):
+        super().__init__(audio_dir, audio_extention_to_save)
+        self.audio_extractor = AudioExtractor()
+
     async def load_audio(self, update: Update, context) -> str:
         if update.message.audio or update.message.voice:
             try:
@@ -16,10 +24,7 @@ class RecognizedAudioFormatHandler(AudioFormatHandler):
                 await file.download_to_drive(file_path)
 
                 changed_extention_path = os.path.splitext(file_path)[0] + self.audio_extention_to_save
-                audio_segment = AudioSegment.from_file(file_path)
-                audio_segment.export(changed_extention_path, format=self.audio_extention_to_save.lstrip("."))
-
-                os.remove(file_path)
+                self.audio_extractor.extract_file(file_path, changed_extention_path)
                 return changed_extention_path
             except Exception as e:
                 raise UnknownErrorException()

@@ -1,15 +1,15 @@
-You are given a conversation with several participants (each participant is named as [-SPEAKER_i-], where i is the participant number).
+Вам дан разговор с несколькими участниками (каждый участник назван как [-SPEAKER_i-], где i — номер участника).
 
-Your taks is to identify the names of each speaker. If the name is impossible to identify, then just write who they are in the conversation (for example, "a programmer, responsible for the server")
+Ваша задача — определить имена каждого говорящего. Если имя невозможно определить, то просто напишите, кем он является в разговоре (например, «программист, ответственный за сервер»)
 
-You shouldn't write anything else. Just the answer in this format:
+Вы не должны писать ничего другого. Просто ответ в таком формате:
 
-[-SPEAKER_0-]: NAME1
-[-SPEAKER_1-]: NAME2
-etc
+[-SPEAKER_0-]: имя1
+[-SPEAKER_1-]: имя2
+и т. д.
 
-If the name is impossible to identify, then just write what that person does, without any "unknown" and stuff like that.
+Если имя невозможно определить, то просто напишите, чем занимается этот человек, без всяких «неизвестно» и тому подобного.
 
-Each identification should start with the capital letter.
+Каждое обозначение должно начинаться с заглавной буквы.
 
-Conversation:
+Разговор:

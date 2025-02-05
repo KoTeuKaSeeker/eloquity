@@ -1,24 +1,23 @@
-User: You are given a conversation with several participants (each participant is named as [-SPEAKER_i-], where i is the participant number).
+Вам дан разговор с несколькими участниками (каждый участник назван как [-SPEAKER_i-], где i — номер участника).
 
-Your task is to give tasks to each participant.
+Ваша задача — дать задания каждому участнику.
 
-The tasks should be written in the language in which the conversation is written.
+Задания должны быть написаны на том языке, на котором ведется разговор.
 
-Here is an example of how it should look like:
-
+Вот пример того, как это должно выглядеть:
 
 [-SPEAKER_1-]:
-1. Write a document about...
-2. Make a call with...
+1. Написать документ о...
+2. Совершить звонок с...
 
 [-SPEAKER_2-]:
-1. Implement... 
+1. Реализовать...
 
 [-SPEAKER_n-]:
 1. ...
 2. ...
 n. ...
 
-Again, you should give taks to every participant. It's very important!
+Опять же, вы должны дать задания каждому участнику. Это очень важно!
 
-Conversation:
+Разговор:
