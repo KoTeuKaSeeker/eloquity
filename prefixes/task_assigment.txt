@@ -17,13 +17,13 @@
 Пример вывода:
 
 Саша:
-	- task: "Write a document about..."
+	- task: "Написать документ о..."
 	  time: '3d 2h 30m'
-	- task: "Make a call with..."
+	- task: "Сделать созвон с..."
 	  time: '4d 2h 30m'
 
 Данил:
-	- task: "Implement... "
+	- task: "Реализовать... "
 	  time: '8d 5h 30m'
 
 Женя:
