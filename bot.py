@@ -65,6 +65,7 @@ def extract_tasks_from_audio_file(audio_path: str):
     trancribe_result: AudioTranscriber.TranscribeResult = audio_transcriber.transcript_audio(audio_path)
 
     conversation = "\n".join(f"speaker_{segment.speaker_id}: {segment.text}" for segment in trancribe_result.segments)
+    print(conversation)
     doc = eloquity.generate_docx(conversation, DOCX_TEMPLATE_PATH)
 
     return doc
@@ -85,7 +86,7 @@ async def transcribe_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     doc = extract_tasks_from_audio_file(audio_path)
-    os.remove(audio_path)
+    # os.remove(audio_path)
     await update.message.reply_text("✅ Файл готов:")
     await upload_doc(update, doc)
 
@@ -113,7 +114,7 @@ def app_initialization():
         compute_type = "float32"
 
     print("Initialization AI models...")
-    audio_transcriber: AudioTranscriber = AudioTranscriber(AudioTranscriber.WisperSize.TINY, "ru", device, compute_type)
+    audio_transcriber: AudioTranscriber = AudioTranscriber(AudioTranscriber.WisperSize.MEDIUM, "ru", device, compute_type)
     
     print("Initialization the API connection...")
     app = Application.builder().token(telegram_bot_token).build()
@@ -132,7 +133,10 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler('custom', custom_command))
     app.add_handler(CommandHandler('from_dropbox', from_dropbox_command))
     
-    app.add_handler(MessageHandler(None, transcribe_file))
+    app.add_handler(MessageHandler(filters.AUDIO, transcribe_file))
+    app.add_handler(MessageHandler(filters.VOICE, transcribe_file))
+    app.add_handler(MessageHandler(filters.VIDEO, transcribe_file))
+    app.add_handler(MessageHandler(filters.Document.ALL, transcribe_file))
 
     app.add_error_handler(error)
 

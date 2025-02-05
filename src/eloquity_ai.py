@@ -113,6 +113,9 @@ class EloquityAI:
     
     def generate_docx(self, conversation_str: str, template_path="docx_templates/default.docx"):
         assignees = self.generate_assignees(conversation_str)
+        
+        print("\n".join(str(assigne) for assigne in assignees))
+
         doc = self.get_docx_from_assignees(assignees, template_path)
         return doc
     
