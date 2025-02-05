@@ -1,15 +1,15 @@
-Вам дан разговор с несколькими участниками (каждый участник назван как [-SPEAKER_i-], где i — номер участника).
+You are given a conversation with several participants.
 
-Ваша задача — определить имена каждого говорящего. Если имя невозможно определить, то просто напишите, кем он является в разговоре (например, «программист, ответственный за сервер»)
+Your taks is to identify the names of each speaker. If the name is impossible to identify, then just write who they are in the conversation (for example, "a programmer, responsible for the server")
 
-Вы не должны писать ничего другого. Просто ответ в таком формате:
+The output should be in yaml format (you don't need to write ```yaml though). Just the answer in this format:
 
-[-SPEAKER_0-]: имя1
-[-SPEAKER_1-]: имя2
-и т. д.
+speaker_0: Name0
+speaker_1: Name1
+etc
 
-Если имя невозможно определить, то просто напишите, чем занимается этот человек, без всяких «неизвестно» и тому подобного.
+If the name is impossible to identify, then just write what that person does, without any "unknown" and stuff like that.
 
-Каждое обозначение должно начинаться с заглавной буквы.
+Each identification should start with the capital letter.
 
-Разговор:
+Conversation:

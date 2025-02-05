@@ -27,3 +27,6 @@ wandb
 
 models
 outputs
+tmp/
+
+data/

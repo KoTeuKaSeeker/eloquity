@@ -24,9 +24,11 @@ from src.drop_box_manager import DropBoxManager
 import uuid
 
 BOT_USERNAME = "zebrains_trascriber_bot"
-AUDIO_DIR = "audio/"
-VIDEO_DIR = "video/"
+AUDIO_DIR = "tmp/"
+VIDEO_DIR = "tmp/"
+DOCX_DIR = "tmp/"
 DROPBOX_DIR = "/transcribe_requests/"
+DOCX_TEMPLATE_PATH = "docx_templates/default.docx"
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -43,21 +45,29 @@ async def custom_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def from_dropbox_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         file_path = drop_box_manager.load_user_drop(update)
-        tasks_str = extract_tasks_from_audio_file(file_path)
-        await update.message.reply_text(tasks_str)
+        doc = extract_tasks_from_audio_file(file_path)
+        await update.message.reply_text("✅ Файл готов:")
+        await upload_doc(update, doc)
     except DropboxIsEmptyException as e:
         await update.message.reply_text(e.open_dropbox_request(update, drop_box_manager))
         return
     except Exception as e:
         await update.message.reply_text(e)
 
+async def upload_doc(update: Update, doc) -> str:
+    doc_path = os.path.join(DOCX_DIR, str(uuid.uuid4()) + ".docx") 
+    doc.save(doc_path)
+
+    await update.message.reply_document(document=open(doc_path, 'rb'))
+    return doc_path
 
 def extract_tasks_from_audio_file(audio_path: str):
     trancribe_result: AudioTranscriber.TranscribeResult = audio_transcriber.transcript_audio(audio_path)
 
     conversation = "\n".join(f"speaker_{segment.speaker_id}: {segment.text}" for segment in trancribe_result.segments)
-    tasks_str = eloquity.generate_task_string(conversation)
-    return tasks_str
+    doc = eloquity.generate_docx(conversation, DOCX_TEMPLATE_PATH)
+
+    return doc
 
 
 async def transcribe_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -74,10 +84,10 @@ async def transcribe_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(str(e))
         return
 
-    task_str = extract_tasks_from_audio_file(audio_path)
+    doc = extract_tasks_from_audio_file(audio_path)
     os.remove(audio_path)
-
-    await update.message.reply_text(task_str)
+    await update.message.reply_text("✅ Файл готов:")
+    await upload_doc(update, doc)
 
 
 async def error(update: Update, context: ContextTypes.DEFAULT_TYPE):

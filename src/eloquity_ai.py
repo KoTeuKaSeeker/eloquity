@@ -1,5 +1,31 @@
 import requests
 import re
+from datetime import datetime, timedelta
+from typing import List
+import yaml
+from docx import Document
+from docx.shared import Pt
+
+
+class Task:
+    def __init__(self, content: str, deadline: datetime):
+        self.content = content
+        self.deadline = deadline
+    
+    def __str__(self):
+        return f"({self.deadline}) {self.content}"
+
+
+class Assignee:
+    def __init__(self, name: str, tasks: List[Task]):
+        self.name = name
+        self.tasks = tasks
+    
+    def __str__(self):
+        output = f"{self.name}:\n"
+        for task in self.tasks:
+            output += f"\t{task}\n"
+        return output
 
 
 class EloquityAI:
@@ -17,7 +43,7 @@ class EloquityAI:
             print(f"Error: File '{file_path}' not found.")
             return ""
 
-    def get_model_response(self, messages):
+    def get_model_response(self, message):
         headers = {
             "Authorization": self.api_key,
             "Content-Type": "application/json"
@@ -25,7 +51,7 @@ class EloquityAI:
         data = {
             "model": "gpt-4o",
             "max_tokens": 2000,
-            "messages": messages
+            "messages": [{"role": "user", "content": message}]
         }
 
         try:
@@ -36,16 +62,71 @@ class EloquityAI:
         
         content = response.json()["choices"][0]["message"]["content"]
 
-        return {"role": "assistant", "content": content}
+        return content
+    
+    def get_delta_time_from_str(self, time_string):
+        pattern = r"(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?"
+        
+        matches = re.match(pattern, time_string)
+        
+        if matches:
+            days = int(matches.group(1) or 0)
+            hours = int(matches.group(2) or 0)
+            minutes = int(matches.group(3) or 0)
+            seconds = int(matches.group(4) or 0)
+            
+            return timedelta(days=days, hours=hours, minutes=minutes, seconds=seconds)
+        
+        return timedelta()
+    
+    
+    def generate_assignees(self, conversation_str: str) -> List[Assignee]:
+        name_dict = self.identify_assignee_names(conversation_str)
+
+        def replace_speakers(text, speakers):
+            pattern = re.compile(r'\b(speaker_\d+)\b')  # Match words like speaker_0
+            return pattern.sub(lambda match: f"[{speakers.get(match.group(1), match.group(1))}]", text)
+        
+        conversation_str = replace_speakers(conversation_str, name_dict)
+        
+        content = self.task_assigment_prefix + conversation_str
+        response = self.get_model_response(content)
+        if len(re.findall(r"[CANT_HANDLE]", response)) > 0:
+            return []
+        
+        assignee_dict = yaml.safe_load(response)
+
+        current_datetime = datetime.now()
+
+        assignee_list: List[Assignee] = []
+        for assignee_name, tasks in assignee_dict.items():
+            task_list: List[Task] = []
+            for task_dict in tasks:
+                delta = self.get_delta_time_from_str(task_dict["time"])
+                task = Task(task_dict["task"], current_datetime + delta)
+                task_list.append(task)
+            
+            assignee = Assignee(assignee_name, task_list)
+            assignee_list.append(assignee)
+
+        return assignee_list
+    
+    def generate_docx(self, conversation_str: str, template_path="docx_templates/default.docx"):
+        assignees = self.generate_assignees(conversation_str)
+        doc = self.get_docx_from_assignees(assignees, template_path)
+        return doc
+    
+    def identify_assignee_names(self, conversation_str: str) -> dict:
+        content = self.name_identification_prefix + conversation_str
+        response = self.get_model_response(content)
+        name_dict = yaml.safe_load(response)
+
+        return name_dict
+        
     
     def map_speaker_names(self, conversation_str: str):
         content = self.name_identification_prefix + conversation_str
-
-        messages = [
-            {"role": "user", "content": content}
-        ]
- 
-        mapping_str = self.get_model_response(messages)['content']
+        mapping_str = self.get_model_response(content)
 
         speakers = set(re.findall(r"\[-SPEAKER_\d+-\]", conversation_str))
         mapping = dict(re.findall(r"(\[-SPEAKER_\d+-\]):\s*(.*)", mapping_str))
@@ -55,25 +136,38 @@ class EloquityAI:
 
         return speakers_dict
     
-    def generate_tasks_and_assign_names(self, conversation_str: str, speakers_dict: dict):
-        content = self.task_assigment_prefix + conversation_str
+    def add_task_table(self, doc, assignee):
+        table = doc.add_table(rows=1, cols=2)
+        table.style = 'EloquityTableStyle'
 
-        messages = [
-            {"role": "user", "content": content}
-        ]
+        hdr_cells = table.rows[0].cells
+        hdr_cells[0].text = 'Задача'
+        hdr_cells[1].text = 'Крайник срок'
 
-        mapping_str = self.get_model_response(messages)['content']
+        for task in assignee.tasks:
+            row_cells = table.add_row().cells
 
-        def replace(match):
-            speaker_tag = match.group(0)
-            return speakers_dict.get(speaker_tag, speaker_tag)
-        
-        tasks_str = re.sub(r"\[-SPEAKER_\d+-\]", replace, mapping_str)
+            row_cells[0].text = task.content
+            row_cells[1].paragraphs[0].paragraph_format.alignment = 1
 
-        return tasks_str
+            time = task.deadline.strftime("%H:%M") + "\n"
+            date = task.deadline.strftime("%d.%m.%Y")
+
+            run0 = row_cells[1].paragraphs[0].add_run(time)
+            run0.font.size = Pt(16)
+
+            run1 = row_cells[1].paragraphs[0].add_run(date)
+            run1.font.size = Pt(12)
+
+        doc.add_paragraph('\n')
     
-    def generate_task_string(self, conversation_str: str) -> str:
-        speakers_dict = self.map_speaker_names(conversation_str)
-        tasks_str = self.generate_tasks_and_assign_names(conversation_str, speakers_dict)
+    def get_docx_from_assignees(self, assignees, template_path="docx_templates/default.docx"):
+        doc = Document(template_path)
 
-        return tasks_str
+        doc.add_heading('Задачи', 1)
+
+        for assignee in assignees:
+            doc.add_heading(assignee.name, 2)
+            self.add_task_table(doc, assignee)
+
+        return doc
