@@ -1,13 +1,15 @@
 import requests
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List
 import yaml
+from docx import Document
+from docx.shared import Pt
+
 
 class Task:
-    def __init__(self, content: str, deadline: str):
+    def __init__(self, content: str, deadline: datetime):
         self.content = content
-        # self.deadline = datetime.strptime(deadline, "%Y-%m-%d %H:%M")
         self.deadline = deadline
     
     def __str__(self):
@@ -62,6 +64,24 @@ class EloquityAI:
 
         return content
     
+    def get_delta_time_from_str(self, time_string):
+        # Regex pattern to match days, hours, minutes, and seconds
+        pattern = r"(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?"
+        
+        # Search for all matches
+        matches = re.match(pattern, time_string)
+        
+        if matches:
+            days = int(matches.group(1) or 0)
+            hours = int(matches.group(2) or 0)
+            minutes = int(matches.group(3) or 0)
+            seconds = int(matches.group(4) or 0)
+            
+            # Return a timedelta object
+            return timedelta(days=days, hours=hours, minutes=minutes, seconds=seconds)
+        
+        return timedelta()  # Return 0 if no match
+    
     def generate_raw_task_str(self, conversation_str: str) -> str:
         content = self.task_assigment_prefix + conversation_str
         task_str = self.get_model_response(content)
@@ -75,17 +95,25 @@ class EloquityAI:
 
         name_dict = self.identify_assignee_names(conversation_str)
 
+        current_datetime = datetime.now()
+
         assignee_list: List[Assignee] = []
         for assignee_name, tasks in assignee_dict.items():
             task_list: List[Task] = []
             for task_dict in tasks:
-                task = Task(task_dict["task"], task_dict["time"])
+                delta = self.get_delta_time_from_str(task_dict["time"])
+                task = Task(task_dict["task"], current_datetime + delta)
                 task_list.append(task)
             
             assignee = Assignee(name_dict[assignee_name], task_list)
             assignee_list.append(assignee)
 
         return assignee_list
+    
+    def generate_docx(self, conversation_str: str, template_path="docx_templates/default.docx"):
+        assignees = self.generate_assignees(conversation_str)
+        doc = self.get_docx_from_assignees(assignees, template_path)
+        return doc
     
     def identify_assignee_names(self, conversation_str: str) -> dict:
         content = self.name_identification_prefix + conversation_str
@@ -95,8 +123,6 @@ class EloquityAI:
         return name_dict
 
     def extract_assignees(self, raw_task_str: str) -> Assignee:
-        # task_str = self.generate_raw_task_str(conversation_str)
-
         speakers = dict(re.findall(r"(\[-SPEAKER_\d+-\]):\s*(.*)", raw_task_str))
 
         assignees: List[Assignee] = []
@@ -145,3 +171,39 @@ class EloquityAI:
         tasks_str = self.generate_tasks_and_assign_names(conversation_str, speakers_dict)
 
         return tasks_str
+    
+    def add_task_table(self, doc, assignee):
+        table = doc.add_table(rows=1, cols=2)
+        table.style = 'EloquityTableStyle'
+
+        hdr_cells = table.rows[0].cells
+        hdr_cells[0].text = 'Задача'
+        hdr_cells[1].text = 'Крайник срок'
+
+        for task in assignee.tasks:
+            row_cells = table.add_row().cells
+
+            row_cells[0].text = task.content
+            row_cells[1].paragraphs[0].paragraph_format.alignment = 1
+
+            time = task.deadline.strftime("%H:%M") + "\n"
+            date = task.deadline.strftime("%d.%m.%Y")
+
+            run0 = row_cells[1].paragraphs[0].add_run(time)
+            run0.font.size = Pt(16)
+
+            run1 = row_cells[1].paragraphs[0].add_run(date)
+            run1.font.size = Pt(12)
+
+        doc.add_paragraph('\n')
+    
+    def get_docx_from_assignees(self, assignees, template_path="docx_templates/default.docx"):
+        doc = Document(template_path)
+
+        doc.add_heading('Задачи', 1)
+
+        for assignee in assignees:
+            doc.add_heading(assignee.name, 2)
+            self.add_task_table(doc, assignee)
+
+        return doc
