@@ -27,3 +27,5 @@ wandb
 
 models
 outputs
+
+data/
