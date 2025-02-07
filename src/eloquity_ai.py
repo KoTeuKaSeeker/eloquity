@@ -89,7 +89,10 @@ class EloquityAI:
         
         conversation_str = replace_speakers(conversation_str, name_dict)
         
-        content = self.task_assigment_prefix + conversation_str
+        current_date = datetime.now()
+        current_time = f"Текущая дата: {str(current_date)}\nТекущий год: {str(current_date.year)}\nТекущий месяц: {str(current_date.month)}\nТекущий день недели: {str(current_date.day)}\nТекущее время: {current_date.hour}:{current_date.minute}\n"
+
+        content =  current_time + self.task_assigment_prefix + conversation_str
         response = self.get_model_response(content)
         if len(re.findall(r"[CANT_HANDLE]", response)) > 0:
             return []

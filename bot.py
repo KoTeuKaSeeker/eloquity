@@ -11,7 +11,8 @@ from huggingface_hub import snapshot_download
 from typing import List
 from moviepy import VideoFileClip
 from src.format_handlers_manager import FormatHandlersManager
-from src.audio_transcriber import AudioTranscriber
+from src.transcribers.audio_transcriber import AudioTranscriber
+from src.transcribers.sieve_audio_transcriber import SieveAudioTranscriber
 from src.exeptions.unknown_error_exception import UnknownErrorException
 from src.exeptions.not_supported_format_exception import NotSupportedFormatException
 from src.exeptions.dropbox_is_empty_exception import DropboxIsEmptyException
@@ -45,6 +46,7 @@ async def custom_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def from_dropbox_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         file_path = drop_box_manager.load_user_drop(update)
+        await update.message.reply_text("⏮️ Файл был успешно загружен. Идёт обработка звука и анализ текста... 🔃")
         doc = extract_tasks_from_audio_file(file_path)
         await update.message.reply_text("✅ Файл готов:")
         await upload_doc(update, doc)
@@ -114,7 +116,7 @@ def app_initialization():
         compute_type = "float32"
 
     print("Initialization AI models...")
-    audio_transcriber: AudioTranscriber = AudioTranscriber(AudioTranscriber.WisperSize.MEDIUM, "ru", device, compute_type)
+    audio_transcriber: SieveAudioTranscriber = SieveAudioTranscriber()
     
     print("Initialization the API connection...")
     app = Application.builder().token(telegram_bot_token).build()

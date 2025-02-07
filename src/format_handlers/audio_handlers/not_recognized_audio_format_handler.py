@@ -6,6 +6,9 @@ from pydub import AudioSegment
 from src.format_handlers.audio_handlers.audio_format_handler import AudioFormatHandler
 from src.exeptions.not_supported_format_exception import NotSupportedFormatException
 from src.file_extractors.audio_extractor import AudioExtractor
+from src.exeptions.unknown_error_exception import UnknownErrorException
+from src.exeptions.too_big_file_exception import TooBigFileException
+from telegram.error import BadRequest
 
 class NotRecognizedAudioFormatHandler(AudioFormatHandler):
     extentions: List[str]
@@ -18,7 +21,12 @@ class NotRecognizedAudioFormatHandler(AudioFormatHandler):
 
     async def load_audio(self, update: Update, context) -> str:
         if update.message.document:
-            file = await update.message.document.get_file()
+            try:
+                file = await update.message.document.get_file()
+            except BadRequest as e:
+                if e.message == "File is too big":
+                    raise TooBigFileException()
+                raise UnknownErrorException()
             file_name = update.message.document.file_name
             file_ext = os.path.splitext(file_name)[1].lower()
 
