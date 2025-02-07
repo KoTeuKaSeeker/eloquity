@@ -17,7 +17,7 @@ class SieveAudioTranscriber(TranscriberInterface):
         self.diarize_min_speakers = -1
         self.diarize_max_speakers = -1
         self.align_only = ""
-        self.batch_size = 32
+        self.batch_size = 8
         self.version = "large-v3"
 
         self.whisperx = sieve.function.get("sieve/whisperx")

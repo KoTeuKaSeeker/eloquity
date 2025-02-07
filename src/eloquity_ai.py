@@ -5,6 +5,7 @@ from typing import List
 import yaml
 from docx import Document
 from docx.shared import Pt
+import json
 
 
 class Task:
@@ -120,10 +121,11 @@ class EloquityAI:
         if json_log is not None:
             json_log["task_assigment_str"] = response
 
-        if len(re.findall(r"[CANT_HANDLE]", response)) > 0:
+        if len(re.findall(r"\[CANT_HANDLE\]", response)) > 0:
             return []
         
-        assignee_dict = yaml.safe_load(response)
+        # assignee_dict = yaml.safe_load(response)
+        assignee_dict = json.loads(response)
 
         current_datetime = datetime.now()
 
@@ -201,6 +203,9 @@ class EloquityAI:
         doc.add_paragraph('\n')
     
     def get_docx_from_assignees(self, assignees, template_path="docx_templates/default.docx"):
+        if len(assignees) <= 0:
+            return None
+
         doc = Document(template_path)
 
         doc.add_heading('Задачи', 1)

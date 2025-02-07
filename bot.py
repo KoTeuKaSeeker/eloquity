@@ -125,6 +125,11 @@ async def transcribe_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     with open(request_log_path, "w", encoding="utf-8") as file:
         json.dump(json_log, file, indent=2, ensure_ascii=False)
     
+    if doc is None:
+        logging.warning(f"Transcription request failed because the model couldn't assign tasks. Request ID: {request_id}")
+        await update.message.reply_text("❌ Модель не смогла распределить задачи. Попробуйте загрузить другую аудиозапись.")
+        return
+
     # os.remove(audio_path)
     await update.message.reply_text("✅ Файл готов:")
     await upload_doc(update, doc)
