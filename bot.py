@@ -1,3 +1,10 @@
+import logging
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("speechbrain.utils.quirks").setLevel(logging.WARNING)
+logging.getLogger("telegram").setLevel(logging.WARNING)
+
+import colorlog
+
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 import os
@@ -23,6 +30,9 @@ from src.file_extractors.audio_extractor import AudioExtractor
 from src.file_extractors.audio_from_video_extractor import AudioFromVideoExtractor
 from src.drop_box_manager import DropBoxManager
 import uuid
+import json
+
+
 
 BOT_USERNAME = "zebrains_trascriber_bot"
 AUDIO_DIR = "tmp/"
@@ -30,6 +40,8 @@ VIDEO_DIR = "tmp/"
 DOCX_DIR = "tmp/"
 DROPBOX_DIR = "/transcribe_requests/"
 DOCX_TEMPLATE_PATH = "docx_templates/default.docx"
+LOG_DIR = "logs/"
+TRANSCRIBE_REQUEST_LOG_DIR = os.path.join(LOG_DIR, "transcribe_requests")
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -63,34 +75,61 @@ async def upload_doc(update: Update, doc) -> str:
     await update.message.reply_document(document=open(doc_path, 'rb'))
     return doc_path
 
-def extract_tasks_from_audio_file(audio_path: str):
+def extract_tasks_from_audio_file(audio_path: str, json_log: dict = None):
     trancribe_result: AudioTranscriber.TranscribeResult = audio_transcriber.transcript_audio(audio_path)
 
+    if json_log is not None:
+        json_log["transcribe_result"] = trancribe_result.__dict__()
+
     conversation = "\n".join(f"speaker_{segment.speaker_id}: {segment.text}" for segment in trancribe_result.segments)
-    print(conversation)
-    doc = eloquity.generate_docx(conversation, DOCX_TEMPLATE_PATH)
+    # print(conversation)
+    doc = eloquity.generate_docx(conversation, DOCX_TEMPLATE_PATH, json_log=json_log)
 
     return doc
 
 
 async def transcribe_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    update.message.chat.send_action("typing")
-    handlers_manager: FormatHandlersManager = FormatHandlersManager(AUDIO_DIR, VIDEO_DIR, ".wav")
+    request_id = str(uuid.uuid4())
+    request_log_dir = os.path.join(TRANSCRIBE_REQUEST_LOG_DIR, request_id)
+    request_log_path = os.path.join(request_log_dir, "log.json")
+    os.makedirs(request_log_dir, exist_ok=True)
+
+    logging.info(f"New transcription request: {request_id}")
+    
+    json_log = dict()
+
+    await update.message.chat.send_action("typing")
+    handlers_manager: FormatHandlersManager = FormatHandlersManager(request_log_dir, request_log_dir, ".wav")
     try:
         audio_path = await handlers_manager.load_audio(update, context)
+
         await update.message.reply_text("⏮️ Файл был успешно загружен. Идёт обработка звука и анализ текста... 🔃")
-        update.message.chat.send_action("typing")
+        await update.message.chat.send_action("typing")
     except TooBigFileException as e:
+        json_log["exception"] = "TooBigFileException"
         await update.message.reply_text(e.open_dropbox_response(update, drop_box_manager))
+
+        with open(request_log_path, "w", encoding="utf-8") as file:
+            json.dump(json_log, file, indent=2, ensure_ascii=False)
+
+        logging.warning(f"Transcription request failed due to 'TooBigFileException'. Request ID: {request_id}")
         return
     except Exception as e:
+        json_log["exception"] = "Exception"
         await update.message.reply_text(str(e))
+        logging.error(f"Transcription request failed due to an unknown exception. Request ID: {request_id}")
         return
 
-    doc = extract_tasks_from_audio_file(audio_path)
+    doc = extract_tasks_from_audio_file(audio_path, json_log=json_log)
+
+    with open(request_log_path, "w", encoding="utf-8") as file:
+        json.dump(json_log, file, indent=2, ensure_ascii=False)
+    
     # os.remove(audio_path)
     await update.message.reply_text("✅ Файл готов:")
     await upload_doc(update, doc)
+
+    logging.info(f"Transcription request complete: {request_id}")
 
 
 async def error(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -99,7 +138,7 @@ async def error(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def app_initialization():
-    print("Starting the bot...")
+    logging.info("Starting the bot")
     
     load_dotenv()
     gptunnel_api_key = os.getenv("GPTUNNEL_API_KEY")
@@ -115,10 +154,10 @@ def app_initialization():
     else:
         compute_type = "float32"
 
-    print("Initialization AI models...")
+    logging.info("Initializing AI models")
     audio_transcriber: SieveAudioTranscriber = SieveAudioTranscriber()
     
-    print("Initialization the API connection...")
+    logging.info("Initializing API connection")
     app = Application.builder().token(telegram_bot_token).build()
     eloquity = EloquityAI(api_key=gptunnel_api_key)
     drop_box_manager = DropBoxManager(DROPBOX_DIR, AUDIO_DIR, VIDEO_DIR, drop_box_token)
@@ -127,8 +166,44 @@ def app_initialization():
 
 
 if __name__ == "__main__":
+    LOG_FORMAT = "%(asctime)s [%(levelname)s] %(message)s"
+    LOG_DATEFMT = "%Y-%m-%d %H:%M:%S"
+
+    console_handler = colorlog.StreamHandler()
+
+    formatter = colorlog.ColoredFormatter(
+    "%(log_color)s" + LOG_FORMAT,
+    datefmt=LOG_DATEFMT,
+    log_colors={
+        'DEBUG': 'blue',
+        'INFO': 'green',
+        'WARNING': 'yellow',
+        'ERROR': 'red',
+        'CRITICAL': 'magenta'
+        })
+    
+    console_handler.setFormatter(formatter)
+
+    file_handler = logging.FileHandler(os.path.join(LOG_DIR, "app.log"))
+    file_handler.setFormatter(logging.Formatter(LOG_FORMAT, datefmt=LOG_DATEFMT))
+
+
+    logging.basicConfig(
+    level=logging.INFO,
+    format="[%(asctime)s] [%(levelname)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[
+        console_handler,
+        file_handler
+    ],
+    force=True
+    )
+
+    logging.getLogger("sieve._openapi").setLevel(logging.CRITICAL)
+    logging.getLogger("sieve").setLevel(logging.CRITICAL)
+
     app, audio_transcriber, eloquity, drop_box_manager, device = app_initialization()
-    print("Initialization is done. Bot ready to work!")
+    logging.info("Initialization complete. Bot is ready to work")
 
     app.add_handler(CommandHandler('start', start_command))
     app.add_handler(CommandHandler('help', help_command))
@@ -142,5 +217,5 @@ if __name__ == "__main__":
 
     app.add_error_handler(error)
 
-    print("Polling...")
+    logging.info("Polling for new events")
     app.run_polling(poll_interval=3)

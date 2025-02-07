@@ -1,4 +1,0 @@
-from src.transcribers.sieve_audio_transcriber import SieveAudioTranscriber
-
-transcriber = SieveAudioTranscriber()
-print(transcriber.transcript_audio("tmp\CQACAgIAAxkBAAIBrmejNzwQMdd-MLiGuRJnYb7Zl3clAAIfYgACaawZSbGxQlRg_RdQNgQ.wav"))

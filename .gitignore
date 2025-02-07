@@ -30,3 +30,5 @@ outputs
 tmp/
 
 data/
+
+logs/

@@ -14,6 +14,12 @@ class Task:
     
     def __str__(self):
         return f"({self.deadline}) {self.content}"
+    
+    def __dict__(self) -> dict:
+        return {
+            "content": self.content,
+            "deadline": self.deadline.strftime("%Y-%m-%d %H:%M:%S")
+        }
 
 
 class Assignee:
@@ -26,6 +32,13 @@ class Assignee:
         for task in self.tasks:
             output += f"\t{task}\n"
         return output
+    
+    def __dict__(self) -> dict:
+        return {
+            "name": self.name,
+            "tasks": [task.__dict__() for task in self.tasks]
+        }
+
 
 
 class EloquityAI:
@@ -80,20 +93,33 @@ class EloquityAI:
         return timedelta()
     
     
-    def generate_assignees(self, conversation_str: str) -> List[Assignee]:
-        name_dict = self.identify_assignee_names(conversation_str)
+    def generate_assignees(self, conversation_str: str, json_log: dict = None) -> List[Assignee]:
+        if json_log is not None:
+            json_log["original_conversation"] = conversation_str
+
+        name_dict = self.identify_assignee_names(conversation_str, json_log)
 
         def replace_speakers(text, speakers):
             pattern = re.compile(r'\b(speaker_\d+)\b')  # Match words like speaker_0
             return pattern.sub(lambda match: f"[{speakers.get(match.group(1), match.group(1))}]", text)
         
         conversation_str = replace_speakers(conversation_str, name_dict)
+
+        if json_log is not None:
+            json_log["replaced_speakers_conversation"] = conversation_str
         
         current_date = datetime.now()
         current_time = f"Текущая дата: {str(current_date)}\nТекущий год: {str(current_date.year)}\nТекущий месяц: {str(current_date.month)}\nТекущий день недели: {str(current_date.day)}\nТекущее время: {current_date.hour}:{current_date.minute}\n"
 
+        if json_log is not None:
+            json_log["current_time_str"] = current_time
+
         content =  current_time + self.task_assigment_prefix + conversation_str
         response = self.get_model_response(content)
+
+        if json_log is not None:
+            json_log["task_assigment_str"] = response
+
         if len(re.findall(r"[CANT_HANDLE]", response)) > 0:
             return []
         
@@ -111,21 +137,28 @@ class EloquityAI:
             
             assignee = Assignee(assignee_name, task_list)
             assignee_list.append(assignee)
+        
+        if json_log is not None:
+            json_log["assignees"] = [assignee.__dict__() for assignee in assignee_list]
 
         return assignee_list
     
-    def generate_docx(self, conversation_str: str, template_path="docx_templates/default.docx"):
-        assignees = self.generate_assignees(conversation_str)
-        
-        print("\n".join(str(assigne) for assigne in assignees))
+    def generate_docx(self, conversation_str: str, template_path="docx_templates/default.docx", json_log: dict = None):
+        assignees = self.generate_assignees(conversation_str, json_log)
+
+        # print("\n".join(str(assigne) for assigne in assignees))
 
         doc = self.get_docx_from_assignees(assignees, template_path)
         return doc
     
-    def identify_assignee_names(self, conversation_str: str) -> dict:
+    def identify_assignee_names(self, conversation_str: str, json_log: dict = None) -> dict:
         content = self.name_identification_prefix + conversation_str
         response = self.get_model_response(content)
         name_dict = yaml.safe_load(response)
+
+        if json_log is not None:
+            json_log["name_identification_str"] = response
+            json_log["name_identification"] = name_dict
 
         return name_dict
         
@@ -148,7 +181,7 @@ class EloquityAI:
 
         hdr_cells = table.rows[0].cells
         hdr_cells[0].text = 'Задача'
-        hdr_cells[1].text = 'Крайник срок'
+        hdr_cells[1].text = 'Крайний срок'
 
         for task in assignee.tasks:
             row_cells = table.add_row().cells

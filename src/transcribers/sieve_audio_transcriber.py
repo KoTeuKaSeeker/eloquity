@@ -1,6 +1,7 @@
 from typing import List
 import sieve
 from src.transcribers.transcriber_interface import TranscriberInterface
+import logging
 
 class SieveAudioTranscriber(TranscriberInterface):
 
@@ -21,7 +22,7 @@ class SieveAudioTranscriber(TranscriberInterface):
 
         self.whisperx = sieve.function.get("sieve/whisperx")
     
-    def transcript_audio(self, file_path: str) -> TranscriberInterface.TranscribeResult:
+    def transcript_audio(self, file_path: str) -> TranscriberInterface.TranscribeResult:  
         audio = sieve.File(file_path)
         result = self.whisperx.run(audio, 
                                     self.word_level_timestamps, 
