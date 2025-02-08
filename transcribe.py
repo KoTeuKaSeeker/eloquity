@@ -1,8 +1,11 @@
-# from src.format_handlers_manager import FormatHandlersManager
+from src.transcribers.audio_transcriber import AudioTranscriber
+from src.transcribers.sieve_audio_transcriber import SieveAudioTranscriber
 
 
-# if __name__ == "__main__":
-#     handlers_manager: FormatHandlersManager = FormatHandlersManager(request_log_dir, request_log_dir, ".wav")
-#     audio_path = handlers_manager.load_audio(update, context)
+if __name__ == "__main__":
+    audio_path = "tmp/AwACAgIAAxkBAAIBg2ejJemwAwF-kGwJHokWoHwE68IlAAIecgACzt0ZSSYYNqupYWw0NgQ.wav"
+    audio_transcriber: SieveAudioTranscriber = SieveAudioTranscriber()
+    
+    trancribe_result: AudioTranscriber.TranscribeResult = audio_transcriber.transcript_audio(audio_path)
 
-#     doc = extract_tasks_from_audio_file(audio_path, json_log=json_log)
+    print(trancribe_result)

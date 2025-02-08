@@ -8,6 +8,10 @@ class TranscriberInterface(ABC):
     class SpeakerData:
         speaker_id: int
         text: str
+
+        def __str__(self):
+            return f"speaker_{self.speaker_id}: {self.text}"
+
     
     @dataclass
     class TranscribeResult():
@@ -17,6 +21,9 @@ class TranscriberInterface(ABC):
             return {
                 "segments": [{"speaker_id": segment.speaker_id, "text": segment.text} for segment in self.segments]
             }
+        
+        def __str__(self):
+            return "".join(f"{str(segment)}\n" for segment in self.segments)
 
     @abstractmethod
     def transcript_audio(self, file_path: str) -> TranscribeResult:
