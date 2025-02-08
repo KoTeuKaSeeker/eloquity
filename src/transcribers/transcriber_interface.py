@@ -11,6 +11,12 @@ class TranscriberInterface(ABC):
 
         def __str__(self):
             return f"speaker_{self.speaker_id}: {self.text}"
+        
+        def __dict__(self):
+            return {
+                "speaker_id": self.speaker_id,
+                "text": self.text
+            }
 
     
     @dataclass
@@ -24,6 +30,9 @@ class TranscriberInterface(ABC):
         
         def __str__(self):
             return "".join(f"{str(segment)}\n" for segment in self.segments)
+        
+        def __dict__(self) -> dict:
+            return [segment.__dict__() for segment in self.segments]
 
     @abstractmethod
     def transcript_audio(self, file_path: str) -> TranscribeResult:
