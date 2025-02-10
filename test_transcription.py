@@ -1,6 +1,8 @@
 from src.transcribers.audio_transcriber import AudioTranscriber
 from src.transcribers.sieve_audio_transcriber import SieveAudioTranscriber
 from src.transcribers.antony_whisper_trainscriber import AntonyWhisperTranscriber
+from src.transcribers.facebook_wisper_transcriber import FacebookWisperTranscriber
+from src.transcribers.seamless_audio_transcriber import SeamlessAudioTranscriber
 import os
 import time
 import json
@@ -19,7 +21,7 @@ if __name__ == "__main__":
 
     audio_dir = "data/test_data/audio"
     result_dir = "data/test_data/results"
-    model_name = "antony_whisper_trainscriber"
+    model_name = "seamless_audio_trainscriber"
     model_result_dir = os.path.join(result_dir, model_name)
 
     audio_to_exlude = ["audio_3.mp3"]
@@ -27,7 +29,7 @@ if __name__ == "__main__":
     audio_names = [audio_name for audio_name in os.listdir(audio_dir) if audio_name not in audio_to_exlude]
     audio_paths = [os.path.join(audio_dir, audio_name) for audio_name in audio_names]
 
-    audio_transcriber: AntonyWhisperTranscriber = AntonyWhisperTranscriber(device=device)
+    audio_transcriber: SeamlessAudioTranscriber = SeamlessAudioTranscriber(device=device)
 
     for audio_id, audio_path in enumerate(audio_paths):
         audio_name = os.path.splitext(os.path.basename(audio_path))[0]
