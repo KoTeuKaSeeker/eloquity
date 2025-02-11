@@ -12,7 +12,7 @@ class AudioExtractor(FileExtractorInterface):
         audio_segment = AudioSegment.from_file(file_path)
         audio_segment.export(extracted_file_path, format=extention.lstrip("."))
 
-        if remove_parent:
+        if remove_parent and file_path != extracted_file_path:
             os.remove(file_path)
         
         return extracted_file_path

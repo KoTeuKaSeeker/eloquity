@@ -22,6 +22,7 @@ class DeepgramTranscriber(TranscriberInterface):
         text = ""
         speaker_id = -1
         words = response.results.channels[0].alternatives[0].words
+        words += words[-1:] 
         for word_id, word in enumerate(words):
             if word.speaker != speaker_id or word_id == len(words) - 1:
                 if speaker_id >= 0:

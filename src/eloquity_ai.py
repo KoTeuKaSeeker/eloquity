@@ -6,6 +6,7 @@ import yaml
 from docx import Document
 from docx.shared import Pt
 import json
+import copy
 
 
 class Task:
@@ -14,12 +15,12 @@ class Task:
         self.deadline = deadline
     
     def __str__(self):
-        return f"({self.deadline}) {self.content}"
+        return f"({self.deadline if self.deadline is not None else '-'}) {self.content}"
     
     def __dict__(self) -> dict:
         return {
             "content": self.content,
-            "deadline": self.deadline.strftime("%Y-%m-%d %H:%M:%S")
+            "deadline": self.deadline.strftime("%Y-%m-%d %H:%M:%S") if self.deadline is not None else "-"
         }
 
 
@@ -110,12 +111,13 @@ class EloquityAI:
             json_log["replaced_speakers_conversation"] = conversation_str
         
         current_date = datetime.now()
-        current_time = f"Текущая дата: {str(current_date)}\nТекущий год: {str(current_date.year)}\nТекущий месяц: {str(current_date.month)}\nТекущий день недели: {str(current_date.day)}\nТекущее время: {current_date.hour}:{current_date.minute}\n"
+        current_time = "Текущая дата: " + current_date.strftime("%H:%M %d.%m.%Y") + "\n"
+        task_assigment_prefix_with_current_time = copy.copy(self.task_assigment_prefix).replace("[CURRENT_DATE]", current_time)
 
         if json_log is not None:
             json_log["current_time_str"] = current_time
 
-        content =  current_time + self.task_assigment_prefix + conversation_str
+        content = task_assigment_prefix_with_current_time + conversation_str
         response = self.get_model_response(content)
 
         if json_log is not None:
@@ -133,8 +135,13 @@ class EloquityAI:
         for assignee_name, tasks in assignee_dict.items():
             task_list: List[Task] = []
             for task_dict in tasks:
-                delta = self.get_delta_time_from_str(task_dict["time"])
-                task = Task(task_dict["task"], current_datetime + delta)
+                # delta = self.get_delta_time_from_str(task_dict["time"])
+                # task = Task(task_dict["task"], current_datetime + delta)
+                try:
+                    time = datetime.strptime(task_dict["time"], "%H:%M %d.%m.%Y")
+                except:
+                    time = None
+                task = Task(task_dict["task"], time)
                 task_list.append(task)
             
             assignee = Assignee(assignee_name, task_list)
@@ -191,8 +198,8 @@ class EloquityAI:
             row_cells[0].text = task.content
             row_cells[1].paragraphs[0].paragraph_format.alignment = 1
 
-            time = task.deadline.strftime("%H:%M") + "\n"
-            date = task.deadline.strftime("%d.%m.%Y")
+            time = task.deadline.strftime("%H:%M") + "\n" if task.deadline is not None else "-" 
+            date = task.deadline.strftime("%d.%m.%Y") if task.deadline is not None else ""
 
             run0 = row_cells[1].paragraphs[0].add_run(time)
             run0.font.size = Pt(16)
