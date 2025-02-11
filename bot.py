@@ -20,6 +20,7 @@ from moviepy import VideoFileClip
 from src.format_handlers_manager import FormatHandlersManager
 from src.transcribers.audio_transcriber import AudioTranscriber
 from src.transcribers.sieve_audio_transcriber import SieveAudioTranscriber
+from src.transcribers.deepgram_transcriber import DeepgramTranscriber
 from src.exeptions.unknown_error_exception import UnknownErrorException
 from src.exeptions.not_supported_format_exception import NotSupportedFormatException
 from src.exeptions.dropbox_is_empty_exception import DropboxIsEmptyException
@@ -150,6 +151,7 @@ def app_initialization():
     telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     hugging_face_token = os.getenv("HUGGING_FACE_TOKEN")
     drop_box_token = os.getenv("DROP_BOX_TOKEN")
+    deepgram_api_key = os.getenv("DEEPGRAM_API_KEY")
 
     login(hugging_face_token)
 
@@ -160,7 +162,7 @@ def app_initialization():
         compute_type = "float32"
 
     logging.info("Initializing AI models")
-    audio_transcriber: SieveAudioTranscriber = SieveAudioTranscriber()
+    audio_transcriber: DeepgramTranscriber = DeepgramTranscriber(deepgram_api_key)
     
     logging.info("Initializing API connection")
     app = Application.builder().token(telegram_bot_token).build()
