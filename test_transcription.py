@@ -1,15 +1,27 @@
 from src.transcribers.audio_transcriber import AudioTranscriber
 from src.transcribers.sieve_audio_transcriber import SieveAudioTranscriber
+from src.transcribers.antony_whisper_trainscriber import AntonyWhisperTranscriber
+from src.transcribers.facebook_wisper_transcriber import FacebookWisperTranscriber
+from src.transcribers.seamless_audio_transcriber import SeamlessAudioTranscriber
 import os
 import time
 import json
 from pydub import AudioSegment
+import torch
 
 
 if __name__ == "__main__":
+    device = 'cpu'
+    if torch.cuda.is_available():
+        device = 'cuda'
+    elif torch.backends.mps.is_available():
+        device = 'mps'
+        setattr(torch.distributed, "is_initialized", lambda : False) # monkey patching
+    device = torch.device(device)
+
     audio_dir = "data/test_data/audio"
     result_dir = "data/test_data/results"
-    model_name = "sieve_whisper_x_large_v3"
+    model_name = "seamless_audio_trainscriber"
     model_result_dir = os.path.join(result_dir, model_name)
 
     audio_to_exlude = ["audio_3.mp3"]
@@ -17,7 +29,7 @@ if __name__ == "__main__":
     audio_names = [audio_name for audio_name in os.listdir(audio_dir) if audio_name not in audio_to_exlude]
     audio_paths = [os.path.join(audio_dir, audio_name) for audio_name in audio_names]
 
-    audio_transcriber: SieveAudioTranscriber = SieveAudioTranscriber()
+    audio_transcriber: SeamlessAudioTranscriber = SeamlessAudioTranscriber(device=device)
 
     for audio_id, audio_path in enumerate(audio_paths):
         audio_name = os.path.splitext(os.path.basename(audio_path))[0]
@@ -49,14 +61,3 @@ if __name__ == "__main__":
         
         with open(transcription_path, "w", encoding='utf-8') as file:
             file.write(str(trancribe_result))
-
-
-        
-
-
-    # audio_path = "tmp/AwACAgIAAxkBAAIBg2ejJemwAwF-kGwJHokWoHwE68IlAAIecgACzt0ZSSYYNqupYWw0NgQ.wav"
-    # audio_transcriber: SieveAudioTranscriber = SieveAudioTranscriber()
-    
-    # trancribe_result: AudioTranscriber.TranscribeResult = audio_transcriber.transcript_audio(audio_path)
-
-    # print(trancribe_result)

@@ -12,6 +12,7 @@ __pycache__/
 
 # IDE
 venv/
+venv2/
 .vscode/
 .idea/
 *.bak
