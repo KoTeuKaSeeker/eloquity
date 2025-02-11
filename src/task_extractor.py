@@ -15,6 +15,8 @@ class TaskExtractor():
         self.eloquity = eloquity
         self.docx_template_path =docx_template_path
         self.temp_dir = temp_dir
+
+        os.makedirs(self.temp_dir, exist_ok=True)
     
     def extract_tasks_from_audio_file(self, audio_path: str, json_log: dict = None):
         trancribe_result: TranscriberInterface.TranscribeResult = self.audio_transcriber.transcript_audio(audio_path)
@@ -38,4 +40,3 @@ class TaskExtractor():
             return None
         doc_path = self.save_doc(doc)
         return doc_path
-
