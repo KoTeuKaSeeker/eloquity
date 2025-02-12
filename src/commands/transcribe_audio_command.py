@@ -36,6 +36,9 @@ class TranscribeAudioCommand(CommandInterface):
         with open(request_log_path, "w", encoding="utf-8") as file:
             json.dump(json_log, file, indent=2, ensure_ascii=False)
         
+        with open(os.path.join(request_log_dir, "transcription.txt"), "w", encoding="utf-8") as file:
+            file.write(json_log["replaced_speakers_conversation"])
+        
         if doc_path is None:
             logging.warning(f"Transcription request failed because the model couldn't assign tasks. Request ID: {request_id}")
             await update.message.reply_text("❌ Модель не смогла распределить задачи. Попробуйте загрузить другую аудиозапись.")

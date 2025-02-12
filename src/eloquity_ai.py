@@ -44,11 +44,12 @@ class Assignee:
 
 
 class EloquityAI:
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, model_name: str = 'gpt-4o'):
         self.api_url = "https://gptunnel.ru/v1/chat/completions"
         self.api_key = api_key
         self.name_identification_prefix = self._load_prefix("prefixes/name_identification.txt")
         self.task_assigment_prefix = self._load_prefix("prefixes/task_assigment.txt")
+        self.model_name = model_name
 
     def _load_prefix(self, file_path: str) -> str:
         try:
@@ -64,7 +65,7 @@ class EloquityAI:
             "Content-Type": "application/json"
         }
         data = {
-            "model": "gpt-4o",
+            "model": self.model_name,
             "max_tokens": 2000,
             "messages": [{"role": "user", "content": message}]
         }

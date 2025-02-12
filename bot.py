@@ -180,7 +180,7 @@ def app_initialization():
     
     logging.info("Initializing API connection")
     app = Application.builder().token(telegram_bot_token).build()
-    eloquity = EloquityAI(api_key=gptunnel_api_key)
+    eloquity = EloquityAI(api_key=gptunnel_api_key, model_name='gpt-4o')
     drop_box_manager = DropBoxManager(DROPBOX_DIR, AUDIO_DIR, VIDEO_DIR, dropbox_refresh_token, dropbox_app_key, dropbox_app_secret)
 
     task_extractor: TaskExtractor = TaskExtractor(audio_transcriber, eloquity, DOCX_TEMPLATE_PATH)
