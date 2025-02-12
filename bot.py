@@ -209,6 +209,8 @@ if __name__ == "__main__":
     
     console_handler.setFormatter(formatter)
 
+    os.makedirs(LOG_DIR, exist_ok=True)
+
     file_handler = logging.FileHandler(os.path.join(LOG_DIR, "app.log"))
     file_handler.setFormatter(logging.Formatter(LOG_FORMAT, datefmt=LOG_DATEFMT))
 

@@ -113,3 +113,7 @@ tzdata==2025.1
 urllib3==2.3.0
 whisperx==3.3.1
 yarl==1.18.3
+dropbox
+moviepy
+sievedata
+deepgram-sdk
