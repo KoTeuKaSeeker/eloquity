@@ -49,6 +49,7 @@ class EloquityAI:
         self.api_key = api_key
         self.name_identification_prefix = self._load_prefix("prefixes/name_identification.txt")
         self.task_assigment_prefix = self._load_prefix("prefixes/task_assigment.txt")
+        self.fix_json_format_prefix = self._load_prefix("prefixes/fix_json_format.txt")
         self.model_name = model_name
 
     def _load_prefix(self, file_path: str) -> str:
@@ -128,7 +129,12 @@ class EloquityAI:
             return []
         
         # assignee_dict = yaml.safe_load(response)
-        assignee_dict = json.loads(response)
+        try:
+            assignee_dict = json.loads(response)
+        except Exception as e:
+            fix_content = self.fix_json_format_prefix + response
+            fix_response = self.get_model_response(fix_content)
+            assignee_dict = json.loads(fix_response)
 
         current_datetime = datetime.now()
 
