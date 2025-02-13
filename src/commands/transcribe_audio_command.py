@@ -33,7 +33,7 @@ class TranscribeAudioCommand(CommandInterface):
         await update.message.reply_text("⏮️ Файл был успешно загружен. Идёт обработка звука и анализ текста... 🔃")
 
         try:
-            doc_path = self.task_extractor.extract_and_save_tasks(audio_path, json_log)
+            doc_path = self.task_extractor.extract_and_save_tasks(audio_path, json_log=json_log)
         except AICantHandleRequestException as e:
             logging.warning(f"Transcription request failed because the model couldn't assign tasks. Request ID: {request_id}")
             await update.message.reply_text(str(e))

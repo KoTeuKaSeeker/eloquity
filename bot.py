@@ -10,8 +10,6 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 import os
 from pydub import AudioSegment
 from huggingface_hub import login
-import whisperx
-import dropbox
 import torch
 from dotenv import load_dotenv
 from huggingface_hub import snapshot_download
