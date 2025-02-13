@@ -9,18 +9,34 @@ import json
 import copy
 
 
+class Deadline():
+    time: datetime
+    approx_discription: str
+
+    def __init__(self, time: datetime = None, approx_discription: str = "-"):
+        self.time = time
+        self.approx_discription = approx_discription
+    
+    def __str__(self):
+        if self.time is None:
+            return self.approx_discription
+        else:
+            return self.time.strftime("%Y-%m-%d %H:%M:%S")
+
+
+
 class Task:
-    def __init__(self, content: str, deadline: datetime):
+    def __init__(self, content: str, deadline: Deadline):
         self.content = content
         self.deadline = deadline
     
     def __str__(self):
-        return f"({self.deadline if self.deadline is not None else '-'}) {self.content}"
+        return f"({self.deadline}) {self.content}"
     
     def __dict__(self) -> dict:
         return {
             "content": self.content,
-            "deadline": self.deadline.strftime("%Y-%m-%d %H:%M:%S") if self.deadline is not None else "-"
+            "deadline": str(self.deadline)
         }
 
 
@@ -144,11 +160,15 @@ class EloquityAI:
             for task_dict in tasks:
                 # delta = self.get_delta_time_from_str(task_dict["time"])
                 # task = Task(task_dict["task"], current_datetime + delta)
+                approx_description = "-"
                 try:
                     time = datetime.strptime(task_dict["time"], "%H:%M %d.%m.%Y")
                 except:
                     time = None
-                task = Task(task_dict["task"], time)
+                    approx_description = task_dict["time"]
+                
+                deadline = Deadline(time, approx_description)
+                task = Task(task_dict["task"], deadline)
                 task_list.append(task)
             
             assignee = Assignee(assignee_name, task_list)
@@ -205,8 +225,8 @@ class EloquityAI:
             row_cells[0].text = task.content
             row_cells[1].paragraphs[0].paragraph_format.alignment = 1
 
-            time = task.deadline.strftime("%H:%M") + "\n" if task.deadline is not None else "-" 
-            date = task.deadline.strftime("%d.%m.%Y") if task.deadline is not None else ""
+            time = task.deadline.time.strftime("%H:%M") + "\n" if task.deadline.time is not None else ""
+            date = task.deadline.time.strftime("%d.%m.%Y") if task.deadline.time is not None else task.deadline.approx_discription 
 
             run0 = row_cells[1].paragraphs[0].add_run(time)
             run0.font.size = Pt(16)
