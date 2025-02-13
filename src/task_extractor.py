@@ -29,12 +29,12 @@ class TaskExtractor():
 
         return doc
     
-    def save_doc(self, doc) -> str:
-        doc_path = os.path.join(self.temp_dir, str(uuid.uuid4()) + ".docx") 
+    def save_doc(self, doc, save_path: str = None) -> str:
+        doc_path = os.path.join(self.temp_dir, str(uuid.uuid4()) + ".docx") if save_path is None else save_path
         doc.save(doc_path)
         return doc_path
     
-    def extract_and_save_tasks(self, audio_path: str, json_log: dict = None):
+    def extract_and_save_tasks(self, audio_path: str, save_path: str = None, json_log: dict = None):
         doc = self.extract_tasks_from_audio_file(audio_path, json_log)
-        doc_path = self.save_doc(doc)
+        doc_path = self.save_doc(doc, save_path=save_path)
         return doc_path
