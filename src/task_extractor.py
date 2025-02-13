@@ -36,7 +36,5 @@ class TaskExtractor():
     
     def extract_and_save_tasks(self, audio_path: str, json_log: dict = None):
         doc = self.extract_tasks_from_audio_file(audio_path, json_log)
-        if doc is None:
-            return None
         doc_path = self.save_doc(doc)
         return doc_path
