@@ -4,6 +4,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from src.commands.command_interface import CommandInterface
 from src.commands.audio_loaders.audio_loader_interface import AudioLoaderInterface
+from src.exeptions.ai_cant_handle_request_exception import AICantHandleRequestException
 from src.task_extractor import TaskExtractor
 import logging
 import json
@@ -31,18 +32,18 @@ class TranscribeAudioCommand(CommandInterface):
             return
         await update.message.reply_text("⏮️ Файл был успешно загружен. Идёт обработка звука и анализ текста... 🔃")
 
-        doc_path = self.task_extractor.extract_and_save_tasks(audio_path, json_log)
+        try:
+            doc_path = self.task_extractor.extract_and_save_tasks(audio_path, json_log)
+        except AICantHandleRequestException as e:
+            logging.warning(f"Transcription request failed because the model couldn't assign tasks. Request ID: {request_id}")
+            await update.message.reply_text(str(e))
+            return
 
         with open(request_log_path, "w", encoding="utf-8") as file:
             json.dump(json_log, file, indent=2, ensure_ascii=False)
         
         with open(os.path.join(request_log_dir, "transcription.txt"), "w", encoding="utf-8") as file:
             file.write(json_log["replaced_speakers_conversation"])
-        
-        if doc_path is None:
-            logging.warning(f"Transcription request failed because the model couldn't assign tasks. Request ID: {request_id}")
-            await update.message.reply_text("❌ Модель не смогла распределить задачи. Попробуйте загрузить другую аудиозапись.")
-            return
         
         await update.message.reply_text("✅ Файл готов:")
         await update.message.reply_document(document=open(doc_path, 'rb'))

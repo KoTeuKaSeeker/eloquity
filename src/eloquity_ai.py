@@ -7,6 +7,7 @@ from docx import Document
 from docx.shared import Pt
 import json
 import copy
+from src.exeptions.ai_cant_handle_request_exception import AICantHandleRequestException
 
 
 class Deadline():
@@ -140,9 +141,9 @@ class EloquityAI:
 
         if json_log is not None:
             json_log["task_assigment_str"] = response
-
+        
         if len(re.findall(r"\[CANT_HANDLE\]", response)) > 0:
-            return []
+            raise AICantHandleRequestException(response.replace("[CANT_HANDLE]", ""))
         
         # assignee_dict = yaml.safe_load(response)
         try:
@@ -237,9 +238,6 @@ class EloquityAI:
         doc.add_paragraph('\n')
     
     def get_docx_from_assignees(self, assignees, template_path="docx_templates/default.docx"):
-        if len(assignees) <= 0:
-            return None
-
         doc = Document(template_path)
 
         doc.add_heading('Задачи', 1)
