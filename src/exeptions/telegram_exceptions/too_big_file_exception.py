@@ -1,10 +1,9 @@
-from src.exeptions.bot_exception import BotException
 from src.drop_box_manager import DropBoxManager
 from telegram import Update
 
-class TooBigFileException(BotException):
+class TooBigFileException(OSError):
     def __init__(self):
-        self.error_message = "Файл слишком большой. Максимальный размер загружаемых файлов для телеграм ботов составляет 50 Мб. Если вы загружаете диалог в видеоформате, попробуйте использовать аудиоформат - он гораздо более ёмкий."
+        super().__init__("Файл слишком большой. Максимальный размер загружаемых файлов для телеграм ботов составляет 50 Мб. Если вы загружаете диалог в видеоформате, попробуйте использовать аудиоформат - он гораздо более ёмкий.")
     
     def open_dropbox_response(self, update: Update, drop_box_manager: DropBoxManager) -> str:
         url = drop_box_manager.open_drop_box_file_request(update)

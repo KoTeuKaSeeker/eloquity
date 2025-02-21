@@ -1,13 +1,15 @@
+import os
+import json
+import logging
 from telegram import Update
 from telegram.ext import ContextTypes
-from src.commands.audio_loaders.audio_loader_interface import AudioLoaderInterface
-from src.format_handlers_manager import FormatHandlersManager
-from src.exeptions.too_big_file_exception import TooBigFileException
-from src.exeptions.not_supported_format_exception import NotSupportedFormatException
 from src.drop_box_manager import DropBoxManager
-import logging
-import json
-import os
+from src.format_handlers_manager import FormatHandlersManager
+from src.commands.audio_loaders.audio_loader_interface import AudioLoaderInterface
+from src.exeptions.telegram_exceptions.too_big_file_exception import TooBigFileException
+from src.exeptions.telegram_exceptions.telegram_bot_exception import TelegramBotException
+from src.exeptions.telegram_exceptions.not_supported_format_exception import NotSupportedFormatException
+
 
 class MessageAudioLoader(AudioLoaderInterface):
     dropbox_manager: DropBoxManager
@@ -35,12 +37,12 @@ class MessageAudioLoader(AudioLoaderInterface):
         except NotSupportedFormatException as e:
             if json_log is not None:
                 json_log["exception"] = "Exception"
-            await update.message.reply_text(str(e))
+            await update.message.reply_text(str(TelegramBotException(e)))
             logging.error(f"Transcription request failed due to an not supproted format ({e.not_supported_format}). Request ID: {request_id}")
             return None
         except Exception as e:
             if json_log is not None:
                 json_log["exception"] = "Exception"
-            await update.message.reply_text(str(e))
+            await update.message.reply_text(str(TelegramBotException(e)))
             logging.error(f"Transcription request failed due to an unknown exception. Request ID: {request_id}")
             return None

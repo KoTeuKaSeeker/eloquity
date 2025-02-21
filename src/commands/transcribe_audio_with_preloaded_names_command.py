@@ -4,11 +4,19 @@ from src.commands.audio_loaders.message_audio_loader import MessageAudioLoader
 from src.task_extractor import TaskExtractor
 from src.drop_box_manager import DropBoxManager
 from telegram.ext._handlers.basehandler import BaseHandler
-from telegram.ext import MessageHandler, filters
+from telegram.ext import MessageHandler, filters, ConversationHandler
 
-class MessageTranscribeAudioCommand(TranscribeAudioCommand):
+class TranscribeAudioWithPreloadedNamesCommand(TranscribeAudioCommand):
+    preloaded_names: List[str]
+
     def __init__(self, dropbox_manager: DropBoxManager, task_extractor: TaskExtractor, transcricribe_request_log_dir: str):
         super().__init__(MessageAudioLoader(dropbox_manager), task_extractor, transcricribe_request_log_dir)
+        self.preloaded_names = []
+
+    async def handle_command(self, update, context):
+        await super().handle_command(update, context)
+        await update.message.reply_text("🚀 Обработка Google Meet беседы завершена.")
+        return ConversationHandler.END
 
     def get_telegram_handlers(self) -> List[BaseHandler]:
         return [
@@ -17,3 +25,9 @@ class MessageTranscribeAudioCommand(TranscribeAudioCommand):
             MessageHandler(filters.VIDEO, self.handle_command),
             MessageHandler(filters.Document.ALL, self.handle_command)
         ]
+    
+    def set_preloaded_names(self, preloaded_names: List[str]):
+        self.preloaded_names = preloaded_names
+    
+    def get_preloaded_names(self) -> List[str]:
+        return self.preloaded_names

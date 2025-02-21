@@ -1,9 +1,8 @@
 from telegram import Update
-from src.exeptions.bot_exception import BotException
 
-class DropboxIsEmptyException(BotException):
+class DropboxIsEmptyException(RuntimeError):
     def __init__(self):
-        self.error_message = "В dropbox не был загружен файл."
+        super().__init__("В dropbox не был загружен файл.")
     
     def open_dropbox_request(self, update: Update, drop_box_manager) -> str:
         url = drop_box_manager.open_drop_box_file_request(update)
