@@ -5,35 +5,25 @@ logging.getLogger("telegram").setLevel(logging.WARNING)
 
 import colorlog
 
+from typing import Dict, Type, List
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 import os
-from pydub import AudioSegment
 from huggingface_hub import login
 import torch
 from dotenv import load_dotenv
-from huggingface_hub import snapshot_download
-from typing import List
-from moviepy import VideoFileClip
-from src.format_handlers_manager import FormatHandlersManager
-from src.transcribers.audio_transcriber import AudioTranscriber
-from src.transcribers.sieve_audio_transcriber import SieveAudioTranscriber
 from src.transcribers.deepgram_transcriber import DeepgramTranscriber
 from src.exeptions.unknown_error_exception import UnknownErrorException
-from src.exeptions.not_supported_format_exception import NotSupportedFormatException
-from src.exeptions.dropbox_is_empty_exception import DropboxIsEmptyException
-from src.exeptions.too_big_file_exception import TooBigFileException
 from src.eloquity_ai import EloquityAI
-from src.format_handlers_manager import allow_audio_extentions, allow_video_extentions
-from src.file_extractors.audio_extractor import AudioExtractor
-from src.file_extractors.audio_from_video_extractor import AudioFromVideoExtractor
-from src.exeptions.dropbox_refresh_token_exception import DropboxRefreshTokenException
 from src.drop_box_manager import DropBoxManager
+from src.commands.command_interface import CommandInterface
 from src.commands.message_transcribe_audio_command import MessageTranscribeAudioCommand
 from src.commands.dropbox_transcribe_audio_command import DropboxTranscribeAudioCommand
+from src.commands.google_meet_connect_command import GoogleMeetConnectCommand
+from src.exeptions.telegram_exceptions.telegram_bot_exception import TelegramBotException
+from src.google_meet.google_meet_bots_manager import GoogleMeetBotsManager
+from src.google_meet.google_meet_bot import GoogleMeetBot
 from src.task_extractor import TaskExtractor
-import uuid
-import json
 
 
 
@@ -45,6 +35,7 @@ DROPBOX_DIR = "/transcribe_requests/"
 DOCX_TEMPLATE_PATH = "docx_templates/default.docx"
 LOG_DIR = "logs/"
 TRANSCRIBE_REQUEST_LOG_DIR = os.path.join(LOG_DIR, "transcribe_requests")
+GOOGLE_CHROME_USER_DATA = GoogleMeetBot.get_chrome_user_data_path()
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -54,6 +45,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("This is a help command!")
 
+async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Нечего отменять 😁")
 
 async def custom_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("This is a custom command!")
@@ -61,13 +54,14 @@ async def custom_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def error(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print(f"Update {update} caused error {context.error}")
-    await update.message.reply_text(str(UnknownErrorException()))
+    await update.message.reply_text(str(TelegramBotException(UnknownErrorException())))
 
 
-def load_commands(dbx: DropBoxManager, task_extractor: TaskExtractor):
-    commands = {}
-    commands[MessageTranscribeAudioCommand] = MessageTranscribeAudioCommand(dbx, task_extractor, TRANSCRIBE_REQUEST_LOG_DIR)
-    commands[DropboxTranscribeAudioCommand] = DropboxTranscribeAudioCommand(dbx, task_extractor, TRANSCRIBE_REQUEST_LOG_DIR)
+def load_commands(dbx: DropBoxManager, task_extractor: TaskExtractor, bots_manager: GoogleMeetBotsManager) -> List[CommandInterface]:
+    commands = []
+    commands.append(GoogleMeetConnectCommand(bots_manager, dbx, task_extractor, TRANSCRIBE_REQUEST_LOG_DIR))
+    commands.append(MessageTranscribeAudioCommand(dbx, task_extractor, TRANSCRIBE_REQUEST_LOG_DIR))
+    commands.append(DropboxTranscribeAudioCommand(dbx, task_extractor, TRANSCRIBE_REQUEST_LOG_DIR))
 
     return commands
 
@@ -75,7 +69,7 @@ def load_commands(dbx: DropBoxManager, task_extractor: TaskExtractor):
 def app_initialization():
     logging.info("Starting the bot")
     
-    load_dotenv()
+    load_dotenv() 
     gptunnel_api_key = os.getenv("GPTUNNEL_API_KEY")
     telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     hugging_face_token = os.getenv("HUGGING_FACE_TOKEN")
@@ -99,12 +93,13 @@ def app_initialization():
     app = Application.builder().token(telegram_bot_token).build()
     eloquity = EloquityAI(api_key=gptunnel_api_key, model_name='gpt-4o')
     drop_box_manager = DropBoxManager(DROPBOX_DIR, AUDIO_DIR, VIDEO_DIR, dropbox_refresh_token, dropbox_app_key, dropbox_app_secret)
+    google_meet_bots_manager = GoogleMeetBotsManager(GOOGLE_CHROME_USER_DATA, bot_profile_indices=[0], show_browser=True)
 
     task_extractor: TaskExtractor = TaskExtractor(audio_transcriber, eloquity, DOCX_TEMPLATE_PATH)
 
-    commands = load_commands(drop_box_manager, task_extractor)
+    commands = load_commands(drop_box_manager, task_extractor, google_meet_bots_manager)
 
-    return app, task_extractor, drop_box_manager, commands, device 
+    return app, task_extractor, drop_box_manager, commands, google_meet_bots_manager, device 
 
 
 if __name__ == "__main__":
@@ -146,20 +141,19 @@ if __name__ == "__main__":
     logging.getLogger("sieve._openapi").setLevel(logging.CRITICAL)
     logging.getLogger("sieve").setLevel(logging.CRITICAL)
 
-    app, task_extractor, drop_box_manager, commands, device = app_initialization()
+    app, task_extractor, drop_box_manager, commands, google_meet_bots_manager, device = app_initialization()
     logging.info("Initialization complete. Bot is ready to work")
 
     app.add_handler(CommandHandler('start', start_command))
     app.add_handler(CommandHandler('help', help_command))
     app.add_handler(CommandHandler('custom', custom_command))
-    app.add_handler(CommandHandler('from_dropbox', commands[DropboxTranscribeAudioCommand].handle_command))
-    
-    app.add_handler(MessageHandler(filters.AUDIO, commands[MessageTranscribeAudioCommand].handle_command))
-    app.add_handler(MessageHandler(filters.VOICE, commands[MessageTranscribeAudioCommand].handle_command))
-    app.add_handler(MessageHandler(filters.VIDEO, commands[MessageTranscribeAudioCommand].handle_command))
-    app.add_handler(MessageHandler(filters.Document.ALL, commands[MessageTranscribeAudioCommand].handle_command))
+    # app.add_handler(CommandHandler('cancel', cancel_command))
 
-    app.add_error_handler(error)
+    for command in commands:
+        for handler in command.get_telegram_handlers():
+            app.add_handler(handler)
+
+    # app.add_error_handler(error)
 
     logging.info("Polling for new events")
     app.run_polling(poll_interval=3)

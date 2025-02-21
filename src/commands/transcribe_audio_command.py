@@ -1,11 +1,13 @@
 import os
 import uuid
+from typing import List
 from telegram import Update
 from telegram.ext import ContextTypes
 from src.commands.command_interface import CommandInterface
 from src.commands.audio_loaders.audio_loader_interface import AudioLoaderInterface
-from src.exeptions.ai_cant_handle_request_exception import AICantHandleRequestException
+from src.exeptions.ai_exceptions.ai_cant_handle_request_exception import AICantHandleRequestException
 from src.task_extractor import TaskExtractor
+from telegram.ext._handlers.basehandler import BaseHandler
 import logging
 import json
 
@@ -33,7 +35,8 @@ class TranscribeAudioCommand(CommandInterface):
         await update.message.reply_text("⏮️ Файл был успешно загружен. Идёт обработка звука и анализ текста... 🔃")
 
         try:
-            doc_path = self.task_extractor.extract_and_save_tasks(audio_path, json_log=json_log)
+            preloaded_names = self.get_preloaded_names()
+            doc_path = self.task_extractor.extract_and_save_tasks(audio_path, preloaded_names=preloaded_names, json_log=json_log)
         except AICantHandleRequestException as e:
             logging.warning(f"Transcription request failed because the model couldn't assign tasks. Request ID: {request_id}")
             await update.message.reply_text(str(e))
@@ -48,3 +51,6 @@ class TranscribeAudioCommand(CommandInterface):
         await update.message.reply_text("✅ Файл готов:")
         await update.message.reply_document(document=open(doc_path, 'rb'))
         logging.info(f"Transcription request complete: {request_id}")
+    
+    def get_preloaded_names(self) -> List[str]:
+        return []

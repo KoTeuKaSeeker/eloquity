@@ -1,12 +1,9 @@
 from telegram import Update
 from telegram.ext import ContextTypes
-from src.commands.audio_loaders.audio_loader_interface import AudioLoaderInterface
-from src.format_handlers_manager import FormatHandlersManager
-from src.exeptions.too_big_file_exception import TooBigFileException
 from src.drop_box_manager import DropBoxManager
-import logging
-import json
-from src.exeptions.dropbox_is_empty_exception import DropboxIsEmptyException
+from src.commands.audio_loaders.audio_loader_interface import AudioLoaderInterface
+from src.exeptions.telegram_exceptions.telegram_bot_exception import TelegramBotException
+from src.exeptions.dropbox_exceptions.dropbox_is_empty_exception import DropboxIsEmptyException
 
 class DropboxAudioLoader(AudioLoaderInterface):
     dropbox_manager: DropBoxManager
@@ -22,5 +19,5 @@ class DropboxAudioLoader(AudioLoaderInterface):
             await update.message.reply_text(e.open_dropbox_request(update, self.dropbox_manager))
             return None
         except Exception as e:
-            await update.message.reply_text(e)
+            await update.message.reply_text(TelegramBotException(e))
             return None

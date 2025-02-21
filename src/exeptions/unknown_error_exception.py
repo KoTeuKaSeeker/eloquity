@@ -1,5 +1,3 @@
-from src.exeptions.bot_exception import BotException
-
-class UnknownErrorException(BotException):
+class UnknownErrorException(Exception):
     def __init__(self):
         super().__init__("Неизвестная ошибка.")

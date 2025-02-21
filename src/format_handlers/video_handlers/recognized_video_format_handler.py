@@ -6,7 +6,7 @@ from moviepy import VideoFileClip
 from src.format_handlers.video_handlers.video_format_handler import VideoFormatHandler
 from src.file_extractors.audio_from_video_extractor import AudioFromVideoExtractor
 from src.exeptions.unknown_error_exception import UnknownErrorException
-from src.exeptions.too_big_file_exception import TooBigFileException
+from src.exeptions.telegram_exceptions.too_big_file_exception import TooBigFileException
 from telegram.error import BadRequest
 
 class RecognizedVideoFormatHandler(VideoFormatHandler):

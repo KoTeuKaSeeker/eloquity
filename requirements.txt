@@ -10,3 +10,4 @@ sievedata
 deepgram-sdk>=3.*,<4.0
 python-docx
 selenium
+sounddevice

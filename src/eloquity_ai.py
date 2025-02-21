@@ -7,7 +7,7 @@ from docx import Document
 from docx.shared import Pt
 import json
 import copy
-from src.exeptions.ai_cant_handle_request_exception import AICantHandleRequestException
+from src.exeptions.ai_exceptions.ai_cant_handle_request_exception import AICantHandleRequestException
 
 
 class Deadline():
@@ -67,6 +67,7 @@ class EloquityAI:
         self.name_identification_prefix = self._load_prefix("prefixes/name_identification.txt")
         self.task_assigment_prefix = self._load_prefix("prefixes/task_assigment.txt")
         self.fix_json_format_prefix = self._load_prefix("prefixes/fix_json_format.txt")
+        self.preloaded_names_assigment = self._load_prefix("prefixes/preloaded_names_assigment.txt")
         self.model_name = model_name
 
     def _load_prefix(self, file_path: str) -> str:
@@ -114,11 +115,11 @@ class EloquityAI:
         return timedelta()
     
     
-    def generate_assignees(self, conversation_str: str, json_log: dict = None) -> List[Assignee]:
+    def generate_assignees(self, conversation_str: str, json_log: dict = None, preloaded_names: List[str] = []) -> List[Assignee]:
         if json_log is not None:
             json_log["original_conversation"] = conversation_str
 
-        name_dict = self.identify_assignee_names(conversation_str, json_log)
+        name_dict, meet_nicknames = self.identify_assignee_names(conversation_str, json_log, preloaded_names=preloaded_names)
 
         def replace_speakers(text, speakers):
             pattern = re.compile(r'\b(speaker_\d+)\b')  # Match words like speaker_0
@@ -131,12 +132,13 @@ class EloquityAI:
         
         current_date = datetime.now()
         current_time = "Текущая дата: " + current_date.strftime("%H:%M %d.%m.%Y") + "\n"
-        task_assigment_prefix_with_current_time = copy.copy(self.task_assigment_prefix).replace("[CURRENT_DATE]", current_time)
+        task_assigment_prefix_modified = copy.copy(self.task_assigment_prefix).replace("[CURRENT_DATE]", current_time)
+        task_assigment_prefix_modified = task_assigment_prefix_modified.replace("[GOOGLE_MEET_NICKNAMES]", "\n".join([f"{i+1}. {name}: {nickname}" for i, (name, nickname) in enumerate(zip(name_dict.values(), meet_nicknames.values())) if nickname is not None]))
 
         if json_log is not None:
             json_log["current_time_str"] = current_time
 
-        content = task_assigment_prefix_with_current_time + conversation_str
+        content = task_assigment_prefix_modified + conversation_str
         response = self.get_model_response(content)
 
         if json_log is not None:
@@ -180,24 +182,42 @@ class EloquityAI:
 
         return assignee_list
     
-    def generate_docx(self, conversation_str: str, template_path="docx_templates/default.docx", json_log: dict = None):
-        assignees = self.generate_assignees(conversation_str, json_log)
+    def generate_docx(self, conversation_str: str, template_path="docx_templates/default.docx", preloaded_names: List[str] = [], json_log: dict = None):
+        assignees = self.generate_assignees(conversation_str, json_log, preloaded_names=preloaded_names)
 
         # print("\n".join(str(assigne) for assigne in assignees))
 
         doc = self.get_docx_from_assignees(assignees, template_path)
         return doc
     
-    def identify_assignee_names(self, conversation_str: str, json_log: dict = None) -> dict:
+    def identify_assignee_names(self, conversation_str: str, json_log: dict = None, preloaded_names: List[str] = []) -> dict:
+        preloaded_names_assigment = ""
+        if len(preloaded_names) > 0:
+            preloaded_names_assigment = copy.copy(self.preloaded_names_assigment).replace("[PRELOADED_NAMES]", "\n".join([f"{i+1}. {name}" for i, name in enumerate(preloaded_names)]))
+
         content = self.name_identification_prefix + conversation_str
+        content = content.replace("[PRELOADED_NAMES_PREFIX]", preloaded_names_assigment)
         response = self.get_model_response(content)
-        name_dict = yaml.safe_load(response)
+        raw_name_dict = yaml.safe_load(response)
+
+        nicknames_pattern = r"\[(.*?)\]"
+        name_pattern = r"^(.*?)(?:\[|$)"
+        meet_nicknames = {}
+        name_dict = {}
+        for speaker, name in raw_name_dict.items():
+            nickname = None
+            matches = re.findall(nicknames_pattern, name)
+            if len(matches) > 0:
+                nickname = matches[0].strip()
+            
+            meet_nicknames[speaker] = nickname
+            name_dict[speaker] = re.findall(name_pattern, name)[0].strip()
 
         if json_log is not None:
             json_log["name_identification_str"] = response
-            json_log["name_identification"] = name_dict
+            json_log["name_identification"] = raw_name_dict
 
-        return name_dict
+        return name_dict, meet_nicknames
         
     
     def map_speaker_names(self, conversation_str: str):

@@ -4,11 +4,11 @@ import dropbox
 import dropbox.exceptions
 import requests
 from telegram import Update
-from src.exeptions.not_supported_format_exception import NotSupportedFormatException
-from src.exeptions.dropbox_is_empty_exception import DropboxIsEmptyException
+from src.exeptions.telegram_exceptions.not_supported_format_exception import NotSupportedFormatException
+from src.exeptions.dropbox_exceptions.dropbox_is_empty_exception import DropboxIsEmptyException
+from src.exeptions.telegram_exceptions.telegram_bot_exception import TelegramBotException
 from src.file_extractors.audio_extractor import AudioExtractor
 from src.file_extractors.audio_from_video_extractor import AudioFromVideoExtractor
-from src.exeptions.dropbox_refresh_token_exception import DropboxRefreshTokenException
 
 class DropBoxManager():
     dbx: dropbox.Dropbox
@@ -80,7 +80,7 @@ class DropBoxManager():
                     is_error = False
         except dropbox.exceptions.ApiError as e:
             if isinstance(e.error, dropbox.files.GetMetadataError):
-              raise DropboxIsEmptyException()  
+              raise DropboxIsEmptyException()
             
         if is_error:
               raise DropboxIsEmptyException()
