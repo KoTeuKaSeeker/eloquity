@@ -23,6 +23,7 @@ class GoogleMeetBot():
         self.is_connected = False
         self.disconnect_callback = None
         self.meet_data = MeetData()
+        self.telegram_user_id = -1
 
         options = webdriver.ChromeOptions()
         if not show_browser:
@@ -42,6 +43,10 @@ class GoogleMeetBot():
         self.driver_options = options
         self.driver = None
     
+    def set_telegram_user_id(self, user_id: int):
+        self.telegram_user_id = user_id
+
+
     @staticmethod
     def get_chrome_user_data_path():
         if sys.platform.startswith("win"):
@@ -72,7 +77,7 @@ class GoogleMeetBot():
         self.disconnect_callback = disconnect_callback
 
 
-    async def connect_to_meet(self, google_meet_link: str, max_page_loading_time: int = 20, max_accept_call_time: int = 300) -> bool:
+    def connect_to_meet(self, google_meet_link: str, max_page_loading_time: int = 20, max_accept_call_time: int = 300) -> bool:
         try:
             if self.meet_link is None:
                 self.driver = webdriver.Chrome(options=self.driver_options)
@@ -94,7 +99,7 @@ class GoogleMeetBot():
             print("Не удалось подтвердить подключение:", e)
             return False
 
-    async def get_memeber_names(self, open_members_menu_time: int = 5) -> List[str]:
+    def get_memeber_names(self, open_members_menu_time: int = 5) -> List[str]:
         if self.driver is None:
             raise ValueError("Бот не подключен к Google Meet")
 
@@ -113,8 +118,8 @@ class GoogleMeetBot():
         self.meet_data.members = participants
         return participants
     
-    async def record_audio(self, audio_device_name: str, save_path: str, max_duration: int = 36000):
-        output_path = await self.audio_recorder.record(audio_device_name, save_path, record_untill_callback=lambda: True, max_duration=max_duration)
+    def record_audio(self, audio_device_name: str, save_path: str, max_duration: int = 36000):
+        output_path = self.audio_recorder.record(audio_device_name, save_path, record_untill_callback=lambda: True, max_duration=max_duration)
         return output_path
 
     def disconnect(self):
@@ -123,4 +128,5 @@ class GoogleMeetBot():
         self.driver = None
         
         self.meet_link = None
+        self.telegram_user_id = -1
         self.meet_data = MeetData()

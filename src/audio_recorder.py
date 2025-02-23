@@ -13,7 +13,7 @@ class AudioRecorder():
         self.channels = channels
         self.sample_rate = sample_rate
     
-    async def record(self, device_name: str, save_path: str, record_untill_callback: Callable[[], bool], max_duration: int = 36000) -> str:
+    def record(self, device_name: str, save_path: str, record_untill_callback: Callable[[], bool], max_duration: int = 36000) -> str:
         if os.path.splitext(save_path)[1] != ".wav":
             raise ValueError("Сохраняемый аудиофайл должен имет расширение '.wav'")
 

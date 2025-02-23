@@ -20,6 +20,9 @@ from src.commands.command_interface import CommandInterface
 from src.commands.message_transcribe_audio_command import MessageTranscribeAudioCommand
 from src.commands.dropbox_transcribe_audio_command import DropboxTranscribeAudioCommand
 from src.commands.google_meet_connect_command import GoogleMeetConnectCommand
+from src.commands.start_command import StartCommand
+from src.commands.cancel_command import CancelCommand
+from src.commands.help_command import HelpCommand
 from src.exeptions.telegram_exceptions.telegram_bot_exception import TelegramBotException
 from src.google_meet.google_meet_bots_manager import GoogleMeetBotsManager
 from src.google_meet.google_meet_bot import GoogleMeetBot
@@ -36,22 +39,7 @@ DOCX_TEMPLATE_PATH = "docx_templates/default.docx"
 LOG_DIR = "logs/"
 TRANSCRIBE_REQUEST_LOG_DIR = os.path.join(LOG_DIR, "transcribe_requests")
 GOOGLE_CHROME_USER_DATA = GoogleMeetBot.get_chrome_user_data_path()
-
-
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Привет. Это бот для анализа аудио и видео сообщений и извлечения из них информации по задаче.")
-
-
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("This is a help command!")
-
-async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Нечего отменять 😁")
-
-async def custom_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("This is a custom command!")
     
-
 async def error(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print(f"Update {update} caused error {context.error}")
     await update.message.reply_text(str(TelegramBotException(UnknownErrorException())))
@@ -60,6 +48,9 @@ async def error(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def load_commands(dbx: DropBoxManager, task_extractor: TaskExtractor, bots_manager: GoogleMeetBotsManager) -> List[CommandInterface]:
     commands = []
     commands.append(GoogleMeetConnectCommand(bots_manager, dbx, task_extractor, TRANSCRIBE_REQUEST_LOG_DIR))
+    commands.append(StartCommand())
+    commands.append(CancelCommand())
+    commands.append(HelpCommand())
     commands.append(MessageTranscribeAudioCommand(dbx, task_extractor, TRANSCRIBE_REQUEST_LOG_DIR))
     commands.append(DropboxTranscribeAudioCommand(dbx, task_extractor, TRANSCRIBE_REQUEST_LOG_DIR))
 
@@ -144,16 +135,11 @@ if __name__ == "__main__":
     app, task_extractor, drop_box_manager, commands, google_meet_bots_manager, device = app_initialization()
     logging.info("Initialization complete. Bot is ready to work")
 
-    app.add_handler(CommandHandler('start', start_command))
-    app.add_handler(CommandHandler('help', help_command))
-    app.add_handler(CommandHandler('custom', custom_command))
-    # app.add_handler(CommandHandler('cancel', cancel_command))
-
     for command in commands:
         for handler in command.get_telegram_handlers():
             app.add_handler(handler)
 
-    # app.add_error_handler(error)
+    app.add_error_handler(error)
 
     logging.info("Polling for new events")
     app.run_polling(poll_interval=3)

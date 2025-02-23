@@ -32,10 +32,10 @@ class GoogleMeetBotsManager(DisconnectBotCallbackInterface):
                 return bot
         return None
 
-    async def connect_bot(self, google_meet_link: str) -> GoogleMeetBot | None:
+    def connect_bot(self, google_meet_link: str) -> GoogleMeetBot | None:
         free_bot = self.get_free_bot()
         if free_bot is not None:
-            await free_bot.connect_to_meet(google_meet_link)
+            free_bot.connect_to_meet(google_meet_link)
         return free_bot
 
     def on_disconnect(self, bot: GoogleMeetBot):
