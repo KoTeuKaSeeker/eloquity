@@ -199,19 +199,22 @@ class EloquityAI:
         content = content.replace("[PRELOADED_NAMES_PREFIX]", preloaded_names_assigment)
         response = self.get_model_response(content)
         raw_name_dict = yaml.safe_load(response)
+        raw_name_dict = {} if raw_name_dict is None else raw_name_dict
 
         nicknames_pattern = r"\[(.*?)\]"
         name_pattern = r"^(.*?)(?:\[|$)"
         meet_nicknames = {}
         name_dict = {}
+
         for speaker, name in raw_name_dict.items():
-            nickname = None
-            matches = re.findall(nicknames_pattern, name)
-            if len(matches) > 0:
-                nickname = matches[0].strip()
-            
-            meet_nicknames[speaker] = nickname
-            name_dict[speaker] = re.findall(name_pattern, name)[0].strip()
+            if name is not None:
+                nickname = None
+                matches = re.findall(nicknames_pattern, name)
+                if len(matches) > 0:
+                    nickname = matches[0].strip()
+                
+                meet_nicknames[speaker] = nickname
+                name_dict[speaker] = re.findall(name_pattern, name)[0].strip()
 
         if json_log is not None:
             json_log["name_identification_str"] = response

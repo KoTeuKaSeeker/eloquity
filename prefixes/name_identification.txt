@@ -8,10 +8,17 @@ speaker_0: Name0
 speaker_1: Name1
 etc
 
-If the name is impossible to identify, then just write what that person does, without any "unknown" and stuff like that.
-
 Each identification should start with the capital letter.
 
 [PRELOADED_NAMES_PREFIX]
+
+
+
+If you cannot determine the names and nicknames of the speakers, then do not explain why - just print an empty line. 
+For example, if you are not given a conversation, just print an empty line, 
+if in a conversation it is not at all clear what is being discussed and there are no speakers at all, just print an empty line, etc. If you know that there is a speaker in the conversation, but his name is not clear, just call him “speaker_i”, where i is the speaker’s serial number.
+
+VERY IMPORTANT:
+Do not under any circumstances write outside the format that I have provided for you, as this is very critical! Either write in the required format, or output an empty line.
 
 Conversation:

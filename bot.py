@@ -19,7 +19,8 @@ from src.drop_box_manager import DropBoxManager
 from src.commands.command_interface import CommandInterface
 from src.commands.message_transcribe_audio_command import MessageTranscribeAudioCommand
 from src.commands.dropbox_transcribe_audio_command import DropboxTranscribeAudioCommand
-from src.commands.google_meet_connect_command import GoogleMeetConnectCommand
+from src.commands.google_meet_connect_commands.google_meet_connect_command import GoogleMeetConnectCommand
+from src.commands.google_meet_connect_commands.google_meet_recording_audio_command import GoogleMeetRecordingAudioCommand
 from src.commands.start_command import StartCommand
 from src.commands.cancel_command import CancelCommand
 from src.commands.help_command import HelpCommand
@@ -27,7 +28,12 @@ from src.exeptions.telegram_exceptions.telegram_bot_exception import TelegramBot
 from src.google_meet.google_meet_bots_manager import GoogleMeetBotsManager
 from src.google_meet.google_meet_bot import GoogleMeetBot
 from src.task_extractor import TaskExtractor
+from src.audio.audio_recorders.obs_audio_recorder import ObsAudioRecorder
 
+#TODO #TODO #TODO #TODO #TODO #TODO #TODO #TODO #TODO #TODO
+# Транскрибатор падает, если получает на вход запись, в котором не сказанно ни одного слова. 
+# Надо исправить эту ошибку - возможно она затрагивает большее количество ситуаций, чем просто "пустая запись".
+#TODO #TODO #TODO #TODO #TODO #TODO #TODO #TODO #TODO #TODO
 
 
 BOT_USERNAME = "zebrains_trascriber_bot"
@@ -39,15 +45,18 @@ DOCX_TEMPLATE_PATH = "docx_templates/default.docx"
 LOG_DIR = "logs/"
 TRANSCRIBE_REQUEST_LOG_DIR = os.path.join(LOG_DIR, "transcribe_requests")
 GOOGLE_CHROME_USER_DATA = GoogleMeetBot.get_chrome_user_data_path()
+OBS_HOST = "localhost"
+OBS_PORT = 4455
+OBS_PASSWORD = "jXy9RT0qcKs93U83"
+OBS_RECORDING_DIRECTORY = "C:/Users/Email.LIT/Videos/"
     
 async def error(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print(f"Update {update} caused error {context.error}")
     await update.message.reply_text(str(TelegramBotException(UnknownErrorException())))
 
-
 def load_commands(dbx: DropBoxManager, task_extractor: TaskExtractor, bots_manager: GoogleMeetBotsManager) -> List[CommandInterface]:
     commands = []
-    commands.append(GoogleMeetConnectCommand(bots_manager, dbx, task_extractor, TRANSCRIBE_REQUEST_LOG_DIR))
+    commands.append(GoogleMeetRecordingAudioCommand(bots_manager, dbx, task_extractor, TRANSCRIBE_REQUEST_LOG_DIR))
     commands.append(StartCommand())
     commands.append(CancelCommand())
     commands.append(HelpCommand())
@@ -84,7 +93,8 @@ def app_initialization():
     app = Application.builder().token(telegram_bot_token).build()
     eloquity = EloquityAI(api_key=gptunnel_api_key, model_name='gpt-4o')
     drop_box_manager = DropBoxManager(DROPBOX_DIR, AUDIO_DIR, VIDEO_DIR, dropbox_refresh_token, dropbox_app_key, dropbox_app_secret)
-    google_meet_bots_manager = GoogleMeetBotsManager(GOOGLE_CHROME_USER_DATA, bot_profile_indices=[0], show_browser=True)
+    audio_recorder = ObsAudioRecorder(OBS_HOST, OBS_PORT, OBS_PASSWORD, OBS_RECORDING_DIRECTORY)
+    google_meet_bots_manager = GoogleMeetBotsManager(GOOGLE_CHROME_USER_DATA, audio_recorder, bot_profile_indices=[1], show_browser=True)
 
     task_extractor: TaskExtractor = TaskExtractor(audio_transcriber, eloquity, DOCX_TEMPLATE_PATH)
 
