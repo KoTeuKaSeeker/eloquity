@@ -20,7 +20,7 @@ class GoogleMeetBot():
     audio_recorder: AudioRecorderInterface
     is_recording: bool
 
-    def __init__(self, profile_path: str, profile_id: str, audio_recorder: AudioRecorderInterface, show_browser: bool = False):
+    def __init__(self, profile_path: str, profile_id: str, audio_recorder: AudioRecorderInterface, show_browser: bool = False, extension_path: str = None):
         self.meet_link = None
         self.is_connected = False
         self.disconnect_callback = None
@@ -35,6 +35,8 @@ class GoogleMeetBot():
         options.add_argument("--disable-gpu")
         options.add_argument("--window-size=1920,1080")
         options.add_argument(f"user-data-dir={profile_path}")
+        if extension_path is not None:
+            options.add_argument(f"--load-extension={extension_path}")
 
         profiles_count = GoogleMeetBot.get_profiles_count(profile_path)
         if not isinstance(profile_id, int) or profile_id < 0 or profile_id >= profiles_count:
@@ -187,12 +189,12 @@ class GoogleMeetBot():
         audio_path = self.stop_record_audio(audio_save_path)
         return audio_path
 
-    def start_record_audio(self, process_name: str = ""):
-        self.audio_recorder.start_record_audio(process_name)
+    def start_record_audio(self):
+        self.audio_recorder.start_record_audio()
         self.is_recording = True
     
-    def stop_record_audio(self, audio_save_path: str, process_name: str = ""):
-        audio_path = self.audio_recorder.stop_record_audio(audio_save_path, process_name)
+    def stop_record_audio(self, audio_save_path: str):
+        audio_path = self.audio_recorder.stop_record_audio(audio_save_path)
         self.is_recording = False
         return audio_path
 

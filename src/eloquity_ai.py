@@ -8,6 +8,7 @@ from docx.shared import Pt
 import json
 import copy
 from src.exeptions.ai_exceptions.ai_cant_handle_request_exception import AICantHandleRequestException
+from src.bitrix.bitrix_manager import BitrixManager
 
 
 class Deadline():
@@ -61,7 +62,7 @@ class Assignee:
 
 
 class EloquityAI:
-    def __init__(self, api_key: str, model_name: str = 'gpt-4o'):
+    def __init__(self, api_key: str, bitrix_manager: BitrixManager, model_name: str = 'gpt-4o'):
         self.api_url = "https://gptunnel.ru/v1/chat/completions"
         self.api_key = api_key
         self.name_identification_prefix = self._load_prefix("prefixes/name_identification.txt")
@@ -69,6 +70,13 @@ class EloquityAI:
         self.fix_json_format_prefix = self._load_prefix("prefixes/fix_json_format.txt")
         self.preloaded_names_assigment = self._load_prefix("prefixes/preloaded_names_assigment.txt")
         self.model_name = model_name
+        self.bitrix_manager = bitrix_manager
+        self.employees_prompt = self.get_employees_prompt()
+        
+    def get_employees_prompt(self):
+        users = self.bitrix_manager.find_users(count_return_entries=-1)
+        employees_prompt = "\n\n".join([str(user) for user in users])
+        return employees_prompt
 
     def _load_prefix(self, file_path: str) -> str:
         try:
@@ -89,11 +97,8 @@ class EloquityAI:
             "messages": [{"role": "user", "content": message}]
         }
 
-        try:
-            response = requests.post(self.api_url, headers=headers, json=data)
-            response.raise_for_status()  # Raise an error for HTTP errors
-        except requests.exceptions.RequestException as e:
-            print(f"Error: {e}")
+        response = requests.post(self.api_url, headers=headers, json=data)
+        response.raise_for_status()  # Raise an error for HTTP errors
         
         content = response.json()["choices"][0]["message"]["content"]
 
@@ -194,9 +199,11 @@ class EloquityAI:
         preloaded_names_assigment = ""
         if len(preloaded_names) > 0:
             preloaded_names_assigment = copy.copy(self.preloaded_names_assigment).replace("[PRELOADED_NAMES]", "\n".join([f"{i+1}. {name}" for i, name in enumerate(preloaded_names)]))
-
+        
         content = self.name_identification_prefix + conversation_str
         content = content.replace("[PRELOADED_NAMES_PREFIX]", preloaded_names_assigment)
+        content = content.replace("[COMPANY_EMPLOYEES_LIST]", self.employees_prompt)
+
         response = self.get_model_response(content)
         raw_name_dict = yaml.safe_load(response)
         raw_name_dict = {} if raw_name_dict is None else raw_name_dict

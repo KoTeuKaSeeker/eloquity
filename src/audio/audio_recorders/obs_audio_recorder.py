@@ -16,7 +16,7 @@ class ObsAudioRecorder(AudioRecorderInterface):
         self.audio_from_video_extractor = AudioFromVideoExtractor()
         self.recording_directory = recording_directory
 
-    def start_record_audio(self, process_name: str) -> str:
+    def start_record_audio(self) -> str:
         self.ws.connect()
         scenes_response = self.ws.call(requests.GetSceneList())
         scenes = scenes_response.getScenes()
@@ -27,7 +27,7 @@ class ObsAudioRecorder(AudioRecorderInterface):
         self.ws.call(requests.SetCurrentProgramScene(sceneName=self.scene_name))
         self.ws.call(requests.StartRecord())
     
-    def stop_record_audio(self, save_audio_path: str, process_name: str = "") -> str:
+    def stop_record_audio(self, save_audio_path: str) -> str:
         self.ws.call(requests.StopRecord())
         self.ws.disconnect()
         time.sleep(1)

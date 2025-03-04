@@ -29,6 +29,8 @@ from src.google_meet.google_meet_bots_manager import GoogleMeetBotsManager
 from src.google_meet.google_meet_bot import GoogleMeetBot
 from src.task_extractor import TaskExtractor
 from src.audio.audio_recorders.obs_audio_recorder import ObsAudioRecorder
+from src.audio.chrome_audio_extension_server import ChromeAudioExtensionServer
+from src.bitrix.bitrix_manager import BitrixManager
 
 #TODO #TODO #TODO #TODO #TODO #TODO #TODO #TODO #TODO #TODO
 # Транскрибатор падает, если получает на вход запись, в котором не сказанно ни одного слова. 
@@ -49,10 +51,17 @@ OBS_HOST = "localhost"
 OBS_PORT = 4455
 OBS_PASSWORD = "jXy9RT0qcKs93U83"
 OBS_RECORDING_DIRECTORY = "C:/Users/Email.LIT/Videos/"
+AUDIO_EXTENSION_PATH = "chrome_recorder_extension/"
+INSTANCE_ID_SCRIPT_PATH = "js_code/get_instance_id_script.js"
+
+def read_instance_id_script(instance_id_script_path: str):
+    with open(instance_id_script_path, "r", encoding="utf-8") as file:
+        script = file.read()
+    return script
     
 async def error(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print(f"Update {update} caused error {context.error}")
-    await update.message.reply_text(str(TelegramBotException(UnknownErrorException())))
+    await update.message.reply_text(str(TelegramBotException(context.error)))
 
 def load_commands(dbx: DropBoxManager, task_extractor: TaskExtractor, bots_manager: GoogleMeetBotsManager) -> List[CommandInterface]:
     commands = []
@@ -77,8 +86,9 @@ def app_initialization():
     dropbox_app_secret = os.getenv("DROPBOX_APP_SECRET")
     dropbox_refresh_token = os.getenv("DROPBOX_REFRESH_TOKEN")
     deepgram_api_key = os.getenv("DEEPGRAM_API_KEY")
+    bitrix_webhook_url = os.getenv("BITRIX_WEBHOOK_URL")
 
-    login(hugging_face_token)
+    # login(hugging_face_token)
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     if device == "cuda":
@@ -91,7 +101,8 @@ def app_initialization():
     
     logging.info("Initializing API connection")
     app = Application.builder().token(telegram_bot_token).build()
-    eloquity = EloquityAI(api_key=gptunnel_api_key, model_name='gpt-4o')
+    bitrix_manager = BitrixManager(bitrix_webhook_url)
+    eloquity = EloquityAI(api_key=gptunnel_api_key, bitrix_manager=bitrix_manager, model_name='gpt-4o-mini')
     drop_box_manager = DropBoxManager(DROPBOX_DIR, AUDIO_DIR, VIDEO_DIR, dropbox_refresh_token, dropbox_app_key, dropbox_app_secret)
     audio_recorder = ObsAudioRecorder(OBS_HOST, OBS_PORT, OBS_PASSWORD, OBS_RECORDING_DIRECTORY)
     google_meet_bots_manager = GoogleMeetBotsManager(GOOGLE_CHROME_USER_DATA, audio_recorder, bot_profile_indices=[1], show_browser=True)
