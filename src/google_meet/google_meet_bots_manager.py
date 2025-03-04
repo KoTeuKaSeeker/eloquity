@@ -1,13 +1,17 @@
 from typing import List, Dict
 from src.google_meet.google_meet_bot import GoogleMeetBot
 from src.google_meet.disconnect_bot_callback_interface import DisconnectBotCallbackInterface
+from src.audio.audio_recorders.obs_audio_recorder import ObsAudioRecorder
+from src.audio.audio_recorders.chrome_extentsion_audio_recorder import ChromeExtentsionAudioRecorder
 from src.google_meet.meet_data import MeetData
+from src.audio.chrome_audio_extension_server import ChromeAudioExtensionServer
 
 class GoogleMeetBotsManager(DisconnectBotCallbackInterface):
     bots: List[GoogleMeetBot]
     meets_data: Dict[str, List[MeetData]]
+    audio_extension_server: ChromeAudioExtensionServer
 
-    def __init__(self, profile_path: str, bot_profile_indices: List[int] = [], show_browser: bool = False):
+    def __init__(self, profile_path: str, obs_audio_recorder: ObsAudioRecorder, bot_profile_indices: List[int] = [], show_browser: bool = False):
         self.meets_data = {}
         profiles_count = GoogleMeetBot.get_profiles_count(profile_path)
         if len(bot_profile_indices) == 0:
@@ -16,7 +20,8 @@ class GoogleMeetBotsManager(DisconnectBotCallbackInterface):
         if any(id < 0 or id >= profiles_count for id in bot_profile_indices):
             raise ValueError(f"Неверное значение индексов профилей ботов. Индексы должны быть в диапазоне от 0 до количества профилей ({profiles_count}) - 1. Указанные индексы ботов:\n {bot_profile_indices}")
         
-        self.bots: List[GoogleMeetBot] = [GoogleMeetBot(profile_path, id, show_browser) for id in bot_profile_indices]
+        self.bots: List[GoogleMeetBot] = [GoogleMeetBot(profile_path, id, obs_audio_recorder, show_browser) for id in bot_profile_indices]
+            
         for bot in self.bots:
             bot.set_disconnect_callback(self)
 

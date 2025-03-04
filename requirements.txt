@@ -11,3 +11,7 @@ deepgram-sdk>=3.*,<4.0
 python-docx
 selenium
 sounddevice
+flask
+platformdirs
+pymilvus
+sentence_transformers

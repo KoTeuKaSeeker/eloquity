@@ -8,22 +8,26 @@ from selenium.webdriver.support import expected_conditions as EC
 from src.exeptions.google_meet_bot.no_user_profiles_found_exception import NoUserProfilesFoundException
 from src.exeptions.google_meet_bot.incorrect_profile_id_exception import IncorrectProfileIdException
 from src.google_meet.disconnect_bot_callback_interface import DisconnectBotCallbackInterface
+from src.audio.audio_recorders.audio_recorder_interface import AudioRecorderInterface
 from src.google_meet.meet_data import MeetData
-from src.audio_recorder import AudioRecorder
+import time
 
 class GoogleMeetBot():
     driver: webdriver.Chrome
     meet_link: str
     disconnect_callback: DisconnectBotCallbackInterface
     meet_data: MeetData
+    audio_recorder: AudioRecorderInterface
+    is_recording: bool
 
-    def __init__(self, profile_path: str, profile_id: str, show_browser: bool = False, audio_recorder: AudioRecorder = AudioRecorder()):
-        self.audio_recorder = audio_recorder
+    def __init__(self, profile_path: str, profile_id: str, audio_recorder: AudioRecorderInterface, show_browser: bool = False, extension_path: str = None):
         self.meet_link = None
         self.is_connected = False
         self.disconnect_callback = None
         self.meet_data = MeetData()
         self.telegram_user_id = -1
+        self.audio_recorder = audio_recorder
+        self.is_recording = False
 
         options = webdriver.ChromeOptions()
         if not show_browser:
@@ -31,6 +35,8 @@ class GoogleMeetBot():
         options.add_argument("--disable-gpu")
         options.add_argument("--window-size=1920,1080")
         options.add_argument(f"user-data-dir={profile_path}")
+        if extension_path is not None:
+            options.add_argument(f"--load-extension={extension_path}")
 
         profiles_count = GoogleMeetBot.get_profiles_count(profile_path)
         if not isinstance(profile_id, int) or profile_id < 0 or profile_id >= profiles_count:
@@ -45,7 +51,6 @@ class GoogleMeetBot():
     
     def set_telegram_user_id(self, user_id: int):
         self.telegram_user_id = user_id
-
 
     @staticmethod
     def get_chrome_user_data_path():
@@ -86,6 +91,9 @@ class GoogleMeetBot():
                     EC.element_to_be_clickable((By.XPATH, '//button[contains(@data-promo-anchor-id, "w5gBed")]'))
                 )
 
+                self.set_microphone_state(mute=True)
+                self.set_camera_state(turn_on=False)
+
                 button = self.driver.find_element(By.XPATH, '//button[contains(@data-promo-anchor-id, "w5gBed")]')
                 button.click()
                 WebDriverWait(self.driver, max_accept_call_time).until(
@@ -117,14 +125,84 @@ class GoogleMeetBot():
         participants = [elem.get_attribute("aria-label") for elem in participant_elements]
         self.meet_data.members = participants
         return participants
+
+    def set_microphone_state(self, mute: bool, wait_time: int = 1):
+        if self.driver is None:
+            raise ValueError("Бот не подключен к Google Meet")
+        
+        microphone_xpath = '//div[contains(@data-promo-anchor-id, "aSBQL")]'
+
+        WebDriverWait(self.driver, wait_time).until(
+            EC.presence_of_element_located((By.XPATH, microphone_xpath))
+        )
+
+        microphone_button = self.driver.find_element(By.XPATH, microphone_xpath)
+        is_muted = microphone_button.get_attribute("data-is-muted") == "true"
+        if (mute and not is_muted) or (not mute and is_muted):
+            microphone_button.click()
+
+
+    def set_camera_state(self, turn_on: bool, wait_time: int = 1):
+        if self.driver is None:
+            raise ValueError("Бот не подключен к Google Meet")
+        
+        camera_xpath = '//div[contains(@data-promo-anchor-id, "yhZxwc")]'
+
+        WebDriverWait(self.driver, wait_time).until(
+            EC.presence_of_element_located((By.XPATH, camera_xpath))
+        )
+
+        camera_button = self.driver.find_element(By.XPATH, camera_xpath)
+        camera_turn_on = camera_button.get_attribute("data-is-muted") == "false"
+        if (not camera_turn_on and turn_on) or (camera_turn_on and not turn_on):
+            camera_button.click()
+        
+        camera_new_state = camera_button.get_attribute("data-is-muted") == "false"
+        if camera_new_state == camera_turn_on:
+            camera_blocked_turn_off_xpath = '//button[contains(@jsname, "jkTUXc")]'
+
+            WebDriverWait(self.driver, wait_time).until(
+                EC.presence_of_element_located((By.XPATH, camera_blocked_turn_off_xpath))
+            )
+
+            camera_blocked_turn_off_button = self.driver.find_element(By.XPATH, camera_blocked_turn_off_xpath)
+            camera_blocked_turn_off_button.click()
+
+
+
+    def record_while_on_meet(self, audio_save_path: str):
+        if self.driver is None:
+            raise ValueError("Бот не подключен к Google Meet")
+        
+        self.start_record_audio()
+        
+        while self.is_recording:
+            try:
+                meet_button = self.driver.find_element(By.XPATH, '//button[contains(@jsname, "CQylAd")]')
+            except Exception as e:
+                break
+            if meet_button is None:
+                break
+
+            time.sleep(1)
+        
+        audio_path = self.stop_record_audio(audio_save_path)
+        return audio_path
+
+    def start_record_audio(self):
+        self.audio_recorder.start_record_audio()
+        self.is_recording = True
     
-    def record_audio(self, audio_device_name: str, save_path: str, max_duration: int = 36000):
-        output_path = self.audio_recorder.record(audio_device_name, save_path, record_untill_callback=lambda: True, max_duration=max_duration)
-        return output_path
+    def stop_record_audio(self, audio_save_path: str):
+        audio_path = self.audio_recorder.stop_record_audio(audio_save_path)
+        self.is_recording = False
+        return audio_path
+
 
     def disconnect(self):
         self.disconnect_callback.on_disconnect(self)
-        self.driver.quit()
+        if self.driver is not None:
+            self.driver.quit()
         self.driver = None
         
         self.meet_link = None

@@ -4,14 +4,21 @@ Your taks is to identify the names of each speaker. If the name is impossible to
 
 The output should be in yaml format (you don't need to write ```yaml though). Just the answer in this format:
 
-speaker_0: Name0
-speaker_1: Name1
+speaker_0: full_name0
+speaker_1: full_name1
 etc
-
-If the name is impossible to identify, then just write what that person does, without any "unknown" and stuff like that.
 
 Each identification should start with the capital letter.
 
 [PRELOADED_NAMES_PREFIX]
+
+
+
+If you cannot determine the names and nicknames of the speakers, then do not explain why - just print an empty line. 
+For example, if you are not given a conversation, just print an empty line, 
+if in a conversation it is not at all clear what is being discussed and there are no speakers at all, just print an empty line, etc. If you know that there is a speaker in the conversation, but his name is not clear, just call him “speaker_i”, where i is the speaker’s serial number.
+
+VERY IMPORTANT:
+Do not under any circumstances write outside the format that I have provided for you, as this is very critical! Either write in the required format, or output an empty line.
 
 Conversation:

@@ -10,6 +10,10 @@ class AudioFromVideoExtractor(FileExtractorInterface):
 
     def extract_file(self, file_path: str, extracted_file_path: str, remove_parent: bool = True):
         try:
+            extention = os.path.splitext(extracted_file_path)[1]
+            if extention != ".wav":
+                raise ValueError("Выходной аудиофайл должен иметь формат .wav")
+
             video = VideoFileClip(file_path)
             video.audio.write_audiofile(extracted_file_path, codec="pcm_s16le")
             video.close()

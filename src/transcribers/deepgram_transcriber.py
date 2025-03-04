@@ -16,7 +16,7 @@ class DeepgramTranscriber(TranscriberInterface):
                 punctuate=True, model="nova-2", language="ru", diarize=True
             )
 
-            response = self.deepgram.listen.prerecorded.v('1').transcribe_file(payload, options)
+            response = self.deepgram.listen.prerecorded.v('1').transcribe_file(payload, options, timeout=600)
 
         segments: List[TranscriberInterface.SpeakerData] = []
         text = ""
