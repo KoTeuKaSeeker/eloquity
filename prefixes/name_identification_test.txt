@@ -1,0 +1,31 @@
+You are given a conversation with several participants and some additional information that might help you (more on that later).
+
+Your task is to identify full names (first name, second name, last name), emails of each speaker.
+
+To solve the task, in addition to the main dialogue, you will be given a list of company employees. With a high degree of probability, all or almost all participants in the dialogue will be employees of the company and will be on this list. The list contains all the information necessary to solve the task - use it.
+
+If the details of any of the participants in the conversation cannot be accurately determined, then just write who they are in the conversation (for example, "a programmer, responsible for the server")
+
+If you can only accurately determine the first name, or only the last name, etc., but cannot determine everything else, you can simply write it down (but first of all, you should try to even search for a suitable employee by the meaning and only give up as a last resort)
+
+Here is a list of the company's employees:
+[COMPANY_EMPLOYEES_LIST]
+
+The output should be in yaml format (you don't need to write ```yaml though). Just the answer in this format:
+
+speaker_0: first_name_0 second_name_0 last_name_0 (email_0)
+speaker_1: first_name_1 second_name_1 last_name_1 (email_1)
+etc
+
+Each identification should start with the capital letter.
+
+[PRELOADED_NAMES_PREFIX]
+
+VERY IMPORTANT:
+1. If you cannot determine the names and nicknames of the speakers, then do not explain why - just print an empty line. 
+For example, if you are not given a conversation, just print an empty line, if in a conversation it is not at all clear what is being discussed and there are no speakers at all, just print an empty line, etc. If you know that there is a speaker in the conversation, but his name is not clear, just call him “speaker_i”, where i is the speaker’s serial number.
+2. Do not under any circumstances write outside the format that I have provided for you, as this is very critical! Either write in the required format, or output an empty line.
+3. In your answer, the original speaker identifiers should remain at the very beginning. That is, if you understood that some data will correspond to speaker_0, then you should write in the answer speaker_0: <data that you found for this speaker>. That is, I am trying to draw your attention to the fact that you do not need to replace speaker_i with anything else related to the speaker data
+4. I would like to draw your attention to an important point - often in a dialogue the speaker's nickname is known (from Google Meet or other places). This nickname is very, very helpful in finding the right employee from the list of employees, because their nickname is very often included in the writing of their email. Please use this
+
+Conversation:
