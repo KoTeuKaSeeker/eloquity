@@ -5,6 +5,7 @@ from telegram.ext import ConversationHandler, MessageHandler, filters, CommandHa
 from src.google_meet.google_meet_bots_manager import GoogleMeetBotsManager
 from src.google_meet.google_meet_bot import GoogleMeetBot
 from src.commands.path_transcribe_audio_with_preloaded_names_command import PathTranscribeAudioWithPreloadedNamesCommand
+from src.bitrix.bitrix_manager import BitrixManager
 from src.task_extractor import TaskExtractor
 from src.drop_box_manager import DropBoxManager
 from telegram import Update, Message, Chat, MessageEntity
@@ -27,11 +28,12 @@ class GoogleMeetRecordingAudioCommand(GoogleMeetConnectCommand):
                 bots_manager: GoogleMeetBotsManager, 
                 dropbox_manager: DropBoxManager, 
                 task_extractor: TaskExtractor, 
+                bitrix_manager: BitrixManager,
                 transcricribe_request_log_dir: str,
                 max_message_waiting_time: datetime.timedelta = datetime.timedelta(minutes=5),
                 tmp_path: str = "tmp/"):
-        super().__init__(bots_manager, dropbox_manager, task_extractor, transcricribe_request_log_dir, max_message_waiting_time)
-        self.transcribe_audio_with_preloaded_names = PathTranscribeAudioWithPreloadedNamesCommand(task_extractor, transcricribe_request_log_dir)
+        super().__init__(bots_manager, dropbox_manager, task_extractor, bitrix_manager, transcricribe_request_log_dir, max_message_waiting_time)
+        self.transcribe_audio_with_preloaded_names = PathTranscribeAudioWithPreloadedNamesCommand(task_extractor, bitrix_manager, transcricribe_request_log_dir)
         self.tmp_path = tmp_path
 
     async def handle_meet(self, update: Update, context: ContextTypes.DEFAULT_TYPE, free_bot: GoogleMeetBot, meet_link: str):
@@ -78,9 +80,8 @@ class GoogleMeetRecordingAudioCommand(GoogleMeetConnectCommand):
     async def meet_handling_complete_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         return WAITING_FOR_AUDIO
 
-    def get_telegram_handlers(self) -> List[BaseHandler]:
-        return [
-            ConversationHandler(
+    def get_telegram_handler(self) -> BaseHandler:
+        return ConversationHandler(
                 entry_points=[MessageHandler(filters.Regex(r"(?:https:\/\/)?meet\.google\.com\/[a-z]{3}-[a-z]{4}-[a-z]{3}"), self.handle_command)],
                 states={
                     WAITING_FOR_CONNECTION: [
@@ -97,4 +98,3 @@ class GoogleMeetRecordingAudioCommand(GoogleMeetConnectCommand):
                     ]
                 },
                 fallbacks=[CommandHandler("cancel", self.cancel)])
-        ]

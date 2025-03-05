@@ -6,5 +6,5 @@ from telegram.ext._handlers.basehandler import BaseHandler
 
 class CommandInterface(ABC):
     @abstractmethod
-    def get_telegram_handlers(self) -> List[BaseHandler]:
+    def get_telegram_handler(self) -> BaseHandler:
         pass

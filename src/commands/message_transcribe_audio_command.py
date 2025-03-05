@@ -4,16 +4,13 @@ from src.commands.audio_loaders.message_audio_loader import MessageAudioLoader
 from src.task_extractor import TaskExtractor
 from src.drop_box_manager import DropBoxManager
 from telegram.ext._handlers.basehandler import BaseHandler
-from telegram.ext import MessageHandler, filters
+from telegram.ext import MessageHandler, filters, ConversationHandler, ContextTypes
+from telegram import Update
+from src.bitrix.bitrix_manager import BitrixManager
 
 class MessageTranscribeAudioCommand(TranscribeAudioCommand):
-    def __init__(self, dropbox_manager: DropBoxManager, task_extractor: TaskExtractor, transcricribe_request_log_dir: str):
-        super().__init__(MessageAudioLoader(dropbox_manager), task_extractor, transcricribe_request_log_dir)
+    def __init__(self, dropbox_manager: DropBoxManager, task_extractor: TaskExtractor, bitrix_manager: BitrixManager, transcricribe_request_log_dir: str):
+        super().__init__(MessageAudioLoader(dropbox_manager), task_extractor, transcricribe_request_log_dir, bitrix_manager)
+    
 
-    def get_telegram_handlers(self) -> List[BaseHandler]:
-        return [
-            MessageHandler(filters.AUDIO, self.handle_command),
-            MessageHandler(filters.VOICE, self.handle_command),
-            MessageHandler(filters.VIDEO, self.handle_command),
-            MessageHandler(filters.Document.ALL, self.handle_command)
-        ]
+            

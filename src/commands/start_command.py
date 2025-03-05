@@ -11,5 +11,5 @@ class StartCommand(CommandInterface):
     async def handle_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Привет. Это бот для анализа аудио и видео сообщений и извлечения из них информации по задаче.")
 
-    def get_telegram_handlers(self) -> List[BaseHandler]:
-        return [CommandHandler('start', self.handle_command)]
+    def get_telegram_handler(self) -> BaseHandler:
+        return CommandHandler('start', self.handle_command)

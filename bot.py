@@ -14,7 +14,7 @@ import torch
 from dotenv import load_dotenv
 from src.transcribers.deepgram_transcriber import DeepgramTranscriber
 from src.exeptions.unknown_error_exception import UnknownErrorException
-from src.eloquity_ai import EloquityAI
+from src.AI.eloquity_ai import EloquityAI
 from src.drop_box_manager import DropBoxManager
 from src.commands.command_interface import CommandInterface
 from src.commands.message_transcribe_audio_command import MessageTranscribeAudioCommand
@@ -63,14 +63,14 @@ async def error(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print(f"Update {update} caused error {context.error}")
     await update.message.reply_text(str(TelegramBotException(context.error)))
 
-def load_commands(dbx: DropBoxManager, task_extractor: TaskExtractor, bots_manager: GoogleMeetBotsManager) -> List[CommandInterface]:
+def load_commands(dbx: DropBoxManager, task_extractor: TaskExtractor, bitrix_manager: BitrixManager, bots_manager: GoogleMeetBotsManager) -> List[CommandInterface]:
     commands = []
-    commands.append(GoogleMeetRecordingAudioCommand(bots_manager, dbx, task_extractor, TRANSCRIBE_REQUEST_LOG_DIR))
+    commands.append(GoogleMeetRecordingAudioCommand(bots_manager, dbx, task_extractor, bitrix_manager, TRANSCRIBE_REQUEST_LOG_DIR))
     commands.append(StartCommand())
     commands.append(CancelCommand())
     commands.append(HelpCommand())
-    commands.append(MessageTranscribeAudioCommand(dbx, task_extractor, TRANSCRIBE_REQUEST_LOG_DIR))
-    commands.append(DropboxTranscribeAudioCommand(dbx, task_extractor, TRANSCRIBE_REQUEST_LOG_DIR))
+    commands.append(MessageTranscribeAudioCommand(dbx, task_extractor, bitrix_manager, TRANSCRIBE_REQUEST_LOG_DIR))
+    commands.append(DropboxTranscribeAudioCommand(dbx, task_extractor, bitrix_manager, TRANSCRIBE_REQUEST_LOG_DIR))
 
     return commands
 
@@ -109,7 +109,7 @@ def app_initialization():
 
     task_extractor: TaskExtractor = TaskExtractor(audio_transcriber, eloquity, DOCX_TEMPLATE_PATH)
 
-    commands = load_commands(drop_box_manager, task_extractor, google_meet_bots_manager)
+    commands = load_commands(drop_box_manager, task_extractor, bitrix_manager, google_meet_bots_manager)
 
     return app, task_extractor, drop_box_manager, commands, google_meet_bots_manager, device 
 
@@ -157,8 +157,7 @@ if __name__ == "__main__":
     logging.info("Initialization complete. Bot is ready to work")
 
     for command in commands:
-        for handler in command.get_telegram_handlers():
-            app.add_handler(handler)
+        app.add_handler(command.get_telegram_handler())
 
     app.add_error_handler(error)
 

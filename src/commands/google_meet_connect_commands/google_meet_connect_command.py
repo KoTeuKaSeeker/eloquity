@@ -5,6 +5,7 @@ from telegram.ext import ConversationHandler, MessageHandler, filters, CommandHa
 from src.google_meet.google_meet_bots_manager import GoogleMeetBotsManager
 from src.google_meet.google_meet_bot import GoogleMeetBot
 from src.commands.message_transcribe_audio_with_preloaded_names_command import MessageTranscribeAudioWithPreloadedNamesCommand
+from src.bitrix.bitrix_manager import BitrixManager
 from src.task_extractor import TaskExtractor
 from src.drop_box_manager import DropBoxManager
 from telegram import Update, Message, Chat, MessageEntity
@@ -34,11 +35,12 @@ class GoogleMeetConnectCommand(CommandInterface):
     def __init__(self, 
                 bots_manager: GoogleMeetBotsManager, 
                 dropbox_manager: DropBoxManager, 
-                task_extractor: TaskExtractor, 
+                task_extractor: TaskExtractor,
+                bitrix_manager: BitrixManager, 
                 transcricribe_request_log_dir: str, 
                 max_message_waiting_time: datetime.timedelta = datetime.timedelta(minutes=5)):
         self.bots_manager = bots_manager
-        self.transcribe_audio_with_preloaded_names = MessageTranscribeAudioWithPreloadedNamesCommand(dropbox_manager, task_extractor, transcricribe_request_log_dir)
+        self.transcribe_audio_with_preloaded_names = MessageTranscribeAudioWithPreloadedNamesCommand(dropbox_manager, task_extractor, bitrix_manager, transcricribe_request_log_dir)
         self.max_message_waiting_time = max_message_waiting_time
         self.active_user_handlers = {}
 
@@ -140,19 +142,17 @@ class GoogleMeetConnectCommand(CommandInterface):
         await update.message.reply_text("🔖 Обработка встречи отменена.")
         return ConversationHandler.END
 
-    def get_telegram_handlers(self) -> List[BaseHandler]:
-        return [
-            ConversationHandler(
-                entry_points=[MessageHandler(filters.Regex(r"(?:https:\/\/)?meet\.google\.com\/[a-z]{3}-[a-z]{4}-[a-z]{3}"), self.handle_command)],
-                states={
-                    WAITING_FOR_CONNECTION: [
-                        CommandHandler("waiting_for_connection_continue", self.connection_complete_callback),
-                        MessageHandler(~filters.Regex(r"^/cancel(?:@\w+)?\b"), self.waiting_for_connection_message)
-                    ],
-                    WAITING_UNTILL_HANDLING: [
-                        CommandHandler("waiting_untill_handling_continue", self.meet_handling_complete_callback),
-                        MessageHandler(~filters.Regex(r"^/cancel(?:@\w+)?\b"), self.waiting_for_meet_handling_message),
-                    ]
-                },
-                fallbacks=[CommandHandler("cancel", self.cancel)])
-        ]
+    def get_telegram_handler(self) -> BaseHandler:
+        return ConversationHandler(
+                    entry_points=[MessageHandler(filters.Regex(r"(?:https:\/\/)?meet\.google\.com\/[a-z]{3}-[a-z]{4}-[a-z]{3}"), self.handle_command)],
+                    states={
+                        WAITING_FOR_CONNECTION: [
+                            CommandHandler("waiting_for_connection_continue", self.connection_complete_callback),
+                            MessageHandler(~filters.Regex(r"^/cancel(?:@\w+)?\b"), self.waiting_for_connection_message)
+                        ],
+                        WAITING_UNTILL_HANDLING: [
+                            CommandHandler("waiting_untill_handling_continue", self.meet_handling_complete_callback),
+                            MessageHandler(~filters.Regex(r"^/cancel(?:@\w+)?\b"), self.waiting_for_meet_handling_message),
+                        ]
+                    },
+                    fallbacks=[CommandHandler("cancel", self.cancel)])

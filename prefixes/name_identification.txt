@@ -4,8 +4,8 @@ Your taks is to identify the names of each speaker. If the name is impossible to
 
 The output should be in yaml format (you don't need to write ```yaml though). Just the answer in this format:
 
-speaker_0: full_name0
-speaker_1: full_name1
+speaker_2: full_name2
+speaker_6: full_name6
 etc
 
 Each identification should start with the capital letter.

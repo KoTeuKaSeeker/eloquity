@@ -10,7 +10,8 @@ import copy
 from src.exeptions.ai_exceptions.ai_cant_handle_request_exception import AICantHandleRequestException
 from src.bitrix.bitrix_manager import BitrixManager
 from src.bitrix.bitrix_user import BitrixUser
-from src.identified_names_handler_interface import IdentifiedNamesHandlerInterface
+from src.bitrix.bitrix_task import BitrixTask
+from src.AI.identified_names_handler_interface import IdentifiedNamesHandlerInterface
 
 
 class Deadline():
@@ -30,7 +31,8 @@ class Deadline():
 
 
 class Task:
-    def __init__(self, content: str, deadline: Deadline):
+    def __init__(self, title: str, content: str, deadline: Deadline):
+        self.title = title
         self.content = content
         self.deadline = deadline
     
@@ -45,8 +47,9 @@ class Task:
 
 
 class Assignee:
-    def __init__(self, name: str, tasks: List[Task]):
+    def __init__(self, name: str, original_speaker_name: str, tasks: List[Task]):
         self.name = name
+        self.original_speaker_name = original_speaker_name
         self.tasks = tasks
     
     def __str__(self):
@@ -212,7 +215,9 @@ class EloquityAI:
             assignee_dict = json.loads(fix_response)
 
         assignee_list: List[Assignee] = []
-        for assignee_name, tasks in assignee_dict.items():
+        for assignee_name, assagnee_data in assignee_dict.items():
+            original_speaker_name = assagnee_data["original_speaker_name"]
+            tasks = assagnee_data["tasks"]
             task_list: List[Task] = []
             for task_dict in tasks:
                 approx_description = "-"
@@ -222,17 +227,31 @@ class EloquityAI:
                     time = None
                     approx_description = task_dict["time"]
                 
+                title = task_dict["title"]
                 deadline = Deadline(time, approx_description)
-                task = Task(task_dict["task"], deadline)
+                task = Task(title, task_dict["task"], deadline)
                 task_list.append(task)
             
-            assignee = Assignee(assignee_name, task_list)
+            assignee = Assignee(assignee_name, original_speaker_name, task_list)
             assignee_list.append(assignee)
         
         if json_log is not None:
             json_log["assignees"] = [assignee.__dict__() for assignee in assignee_list]
         
         return assignee_list
+
+    def add_assignee_to_bitrix(self, assignees: List[Assignee], speaker_to_user: dict, name_dict: dict):
+        name_to_speaker = {name: speaker for speaker, name in name_dict.items()}
+        
+        for assignee in assignees:
+            speaker = name_to_speaker[assignee.original_speaker_name]
+            user: BitrixUser = speaker_to_user[speaker]
+
+                        
+            bitrix_tasks = [BitrixTask(title=task.title, created_by_id=1, responsible_id=user.id, discription=task.content) for task in assignee.tasks]
+            for task in bitrix_tasks:
+                self.bitrix_manager.create_task_on_bitrix(task)
+        
 
     def identify_assignee_for_participants(self, conversation_str: str, name_dict: dict, meet_nicknames: dict, json_log: dict = None):
         content = self.prepare_task_assigment_prompt(conversation_str, name_dict, meet_nicknames, json_log)
@@ -298,8 +317,9 @@ class EloquityAI:
 
         return assignee_list
     
-    def generate_docx(self, conversation_str: str, template_path="docx_templates/default.docx", preloaded_names: List[str] = [], json_log: dict = None, identified_names_handler: IdentifiedNamesHandlerInterface = None):
-        assignees = self.generate_assignees(conversation_str, json_log, preloaded_names=preloaded_names, identified_names_handler=identified_names_handler)
+    def generate_docx(self, conversation_str: str, template_path="docx_templates/default.docx", preloaded_names: List[str] = [], json_log: dict = None, identified_names_handler: IdentifiedNamesHandlerInterface = None, assignees: List[Assignee] = []):
+        if len(assignees) == 0:
+            assignees = self.generate_assignees(conversation_str, json_log, preloaded_names=preloaded_names, identified_names_handler=identified_names_handler)
         doc = self.get_docx_from_assignees(assignees, template_path)
         return doc
     

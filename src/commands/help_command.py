@@ -11,5 +11,5 @@ class HelpCommand(CommandInterface):
     async def handle_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("This is a help command!")
 
-    def get_telegram_handlers(self) -> List[BaseHandler]:
-        return [CommandHandler('help', self.handle_command)]
+    def get_telegram_handler(self) -> BaseHandler:
+        return CommandHandler('help', self.handle_command)
