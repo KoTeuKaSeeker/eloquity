@@ -15,3 +15,5 @@ flask
 platformdirs
 pymilvus
 sentence_transformers
+tzlocal
+thefuzz

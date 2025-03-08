@@ -31,6 +31,10 @@ from src.task_extractor import TaskExtractor
 from src.audio.audio_recorders.obs_audio_recorder import ObsAudioRecorder
 from src.audio.chrome_audio_extension_server import ChromeAudioExtensionServer
 from src.bitrix.bitrix_manager import BitrixManager
+from src.AI.users_data_base import UsersDataBase
+from src.conversation.conversation_states_manager import ConversationStatesManager
+from src.commands.remind_command import RemindCommand
+from src.commands.message_transcribe_audio_with_preloaded_names_command import MessageTranscribeAudioWithPreloadedNamesCommand
 
 #TODO #TODO #TODO #TODO #TODO #TODO #TODO #TODO #TODO #TODO
 # Транскрибатор падает, если получает на вход запись, в котором не сказанно ни одного слова. 
@@ -53,6 +57,8 @@ OBS_PASSWORD = "jXy9RT0qcKs93U83"
 OBS_RECORDING_DIRECTORY = "C:/Users/Email.LIT/Videos/"
 AUDIO_EXTENSION_PATH = "chrome_recorder_extension/"
 INSTANCE_ID_SCRIPT_PATH = "js_code/get_instance_id_script.js"
+MILVIS_HOST = "192.168.0.11"
+MILVIS_PORT = "19530"
 
 def read_instance_id_script(instance_id_script_path: str):
     with open(instance_id_script_path, "r", encoding="utf-8") as file:
@@ -65,13 +71,12 @@ async def error(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def load_commands(dbx: DropBoxManager, task_extractor: TaskExtractor, bitrix_manager: BitrixManager, bots_manager: GoogleMeetBotsManager) -> List[CommandInterface]:
     commands = []
-    commands.append(GoogleMeetRecordingAudioCommand(bots_manager, dbx, task_extractor, bitrix_manager, TRANSCRIBE_REQUEST_LOG_DIR))
     commands.append(StartCommand())
-    commands.append(CancelCommand())
-    commands.append(HelpCommand())
+    commands.append(RemindCommand())
+    commands.append(GoogleMeetRecordingAudioCommand(bots_manager, dbx, task_extractor, bitrix_manager, TRANSCRIBE_REQUEST_LOG_DIR))
     commands.append(MessageTranscribeAudioCommand(dbx, task_extractor, bitrix_manager, TRANSCRIBE_REQUEST_LOG_DIR))
     commands.append(DropboxTranscribeAudioCommand(dbx, task_extractor, bitrix_manager, TRANSCRIBE_REQUEST_LOG_DIR))
-
+    commands.append(MessageTranscribeAudioWithPreloadedNamesCommand(dbx, task_extractor, bitrix_manager, ""))
     return commands
 
 
@@ -102,16 +107,18 @@ def app_initialization():
     logging.info("Initializing API connection")
     app = Application.builder().token(telegram_bot_token).build()
     bitrix_manager = BitrixManager(bitrix_webhook_url)
-    eloquity = EloquityAI(api_key=gptunnel_api_key, bitrix_manager=bitrix_manager, model_name='gpt-4o-mini')
+    users_database = UsersDataBase(bitrix_manager.find_users(count_return_entries=-1), MILVIS_HOST, MILVIS_PORT)
+    eloquity = EloquityAI(api_key=gptunnel_api_key, bitrix_manager=bitrix_manager, users_database=users_database, model_name='gpt-4o-mini')
     drop_box_manager = DropBoxManager(DROPBOX_DIR, AUDIO_DIR, VIDEO_DIR, dropbox_refresh_token, dropbox_app_key, dropbox_app_secret)
     audio_recorder = ObsAudioRecorder(OBS_HOST, OBS_PORT, OBS_PASSWORD, OBS_RECORDING_DIRECTORY)
     google_meet_bots_manager = GoogleMeetBotsManager(GOOGLE_CHROME_USER_DATA, audio_recorder, bot_profile_indices=[1], show_browser=True)
-
     task_extractor: TaskExtractor = TaskExtractor(audio_transcriber, eloquity, DOCX_TEMPLATE_PATH)
+    conversation_states_manager = ConversationStatesManager()
+    
 
     commands = load_commands(drop_box_manager, task_extractor, bitrix_manager, google_meet_bots_manager)
 
-    return app, task_extractor, drop_box_manager, commands, google_meet_bots_manager, device 
+    return app, task_extractor, drop_box_manager, commands, google_meet_bots_manager, conversation_states_manager, device 
 
 
 if __name__ == "__main__":
@@ -147,19 +154,23 @@ if __name__ == "__main__":
         console_handler,
         file_handler
     ],
+
     force=True
     )
 
     logging.getLogger("sieve._openapi").setLevel(logging.CRITICAL)
     logging.getLogger("sieve").setLevel(logging.CRITICAL)
 
-    app, task_extractor, drop_box_manager, commands, google_meet_bots_manager, device = app_initialization()
+    app, task_extractor, drop_box_manager, commands, google_meet_bots_manager, conversation_states_manager, device = app_initialization()
     logging.info("Initialization complete. Bot is ready to work")
 
-    for command in commands:
-        app.add_handler(command.get_telegram_handler())
 
+    for command in commands:
+        conversation_states_manager.add_conversation_states(command.get_conversation_states())
+        conversation_states_manager.add_entry_points(command.get_entry_points())
+    
+    app.add_handler(conversation_states_manager.create_conversation_handler())
     app.add_error_handler(error)
 
     logging.info("Polling for new events")
-    app.run_polling(poll_interval=3)
+    app.run_polling(poll_interval=3, drop_pending_updates=True)

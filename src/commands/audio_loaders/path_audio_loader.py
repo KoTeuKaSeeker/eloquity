@@ -6,13 +6,10 @@ from src.exeptions.telegram_exceptions.telegram_bot_exception import TelegramBot
 from src.exeptions.dropbox_exceptions.dropbox_is_empty_exception import DropboxIsEmptyException
 
 class PathAudioLoader(AudioLoaderInterface):
-    audio_path: str
+    audio_path_key: str
 
-    def __init__(self, audio_path: str = ""):
-        self.audio_path = audio_path
-
-    def set_audio_path(self, audio_path: str):
-        self.audio_path = audio_path
+    def __init__(self, audio_path_key: str = "preloaded_audio_path"):
+        self.audio_path_key = audio_path_key
 
     async def load_audio(self, update: Update, context: ContextTypes.DEFAULT_TYPE, json_log: dict = None, request_log_dir: str = "", request_id: int = -1) -> str:
-        return self.audio_path
+        return context.user_data[self.audio_path_key]

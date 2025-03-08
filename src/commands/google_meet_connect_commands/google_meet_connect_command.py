@@ -16,6 +16,7 @@ import datetime
 import pytz
 import asyncio
 import time
+from src.conversation.conversation_states_manager import ConversationStatesManager, ConversationState, move_next, move_back
 
 WAITING_FOR_AUDIO, WAITING_UNTILL_HANDLING, WAITING_FOR_CONNECTION = range(3)
 
@@ -37,10 +38,9 @@ class GoogleMeetConnectCommand(CommandInterface):
                 dropbox_manager: DropBoxManager, 
                 task_extractor: TaskExtractor,
                 bitrix_manager: BitrixManager, 
-                transcricribe_request_log_dir: str, 
+                transcricribe_request_log_dir: str,
                 max_message_waiting_time: datetime.timedelta = datetime.timedelta(minutes=5)):
         self.bots_manager = bots_manager
-        self.transcribe_audio_with_preloaded_names = MessageTranscribeAudioWithPreloadedNamesCommand(dropbox_manager, task_extractor, bitrix_manager, transcricribe_request_log_dir)
         self.max_message_waiting_time = max_message_waiting_time
         self.active_user_handlers = {}
 
@@ -49,7 +49,7 @@ class GoogleMeetConnectCommand(CommandInterface):
         
         if free_bot is None:
             await update.message.reply_text("⏮️ Не могу подключиться к конференции, так как все Google Meet боты заняты. Повторите попытку позже.")
-            return ConversationHandler.END
+            return None
         
         self.active_user_handlers[update.message.from_user.id] = GoogleMeetConnectCommand.UserHandleDiscription(free_bot, [asyncio.current_task()])
         await asyncio.to_thread(free_bot.connect_to_meet, meet_link)
@@ -75,7 +75,7 @@ class GoogleMeetConnectCommand(CommandInterface):
 
     async def handle_meet(self, update: Update, context: ContextTypes.DEFAULT_TYPE, free_bot: GoogleMeetBot, meet_link: str):
         member_names = free_bot.get_memeber_names()[1:]
-        self.transcribe_audio_with_preloaded_names.set_preloaded_names(member_names)
+        context.user_data["preloaded_names"] = member_names
 
         await update.message.reply_text("✅ Обработка информации встречи завершена. Когда будете готовы, отравьте аудиозапись беседы со встречи следующим сообщением.\nЕсли же вы хотите завершить обработку встречи, выполните команду /cancel.")
         await update.message.reply_text("Для дебага: участники встречи:\n" + "\n".join([f"{i+1}. {name}" for i, name in enumerate(member_names)]))
@@ -106,13 +106,13 @@ class GoogleMeetConnectCommand(CommandInterface):
             days = message_waiting_time.days
             
             await update.message.reply_text(f"⏮️ Прошло слишком много времени с момента отправки приглашения на встречу ({days} дн. {hours} ч. {minutes} мин.), возможно встреча уже закончилась.\n❄️ Если это не так, пожалуйста, отправьте приглашение на встречу заново (не перессылкой, а новым сообщением).")
-            return ConversationHandler.END
+            return move_back(context)
 
         await update.message.reply_text("Ссылка на Google Meet встречу была обнаружена. Подключаюсь к конференции... 🔃\nЕсли хотите отменить подключение, выполните команду /cancel.")
         
         asyncio.create_task(self.background_connection_to_bot(update, context, meet_link))
 
-        return WAITING_FOR_CONNECTION
+        return move_next(context, ConversationState.google_meet_waiting_for_connection, ConversationState.waiting)
 
     async def print_bot_end_connection_message(self, update: Update):
         await update.message.reply_text("Бот подключился к конференции 👋")
@@ -127,10 +127,10 @@ class GoogleMeetConnectCommand(CommandInterface):
         await update.message.reply_text("⏮️ Пожалуйста, отправьте аудиозапись со встречи 🔖. Если хотите отменить обработку встречи, выполните команду /cancel.")
 
     async def connection_complete_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        return WAITING_UNTILL_HANDLING
+        return move_next(context, ConversationState.google_meet_waiting_untill_handling, ConversationState.waiting)
     
     async def meet_handling_complete_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        return ConversationHandler.END
+        return move_next(context, ConversationState.message_speaker_correction_state_with_preloaded_names, ConversationState.waiting)
 
     async def cancel(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         if update.message.from_user.id in self.active_user_handlers:
@@ -140,19 +140,21 @@ class GoogleMeetConnectCommand(CommandInterface):
                 task.cancel()
             del self.active_user_handlers[update.message.from_user.id]
         await update.message.reply_text("🔖 Обработка встречи отменена.")
-        return ConversationHandler.END
-
-    def get_telegram_handler(self) -> BaseHandler:
-        return ConversationHandler(
-                    entry_points=[MessageHandler(filters.Regex(r"(?:https:\/\/)?meet\.google\.com\/[a-z]{3}-[a-z]{4}-[a-z]{3}"), self.handle_command)],
-                    states={
-                        WAITING_FOR_CONNECTION: [
-                            CommandHandler("waiting_for_connection_continue", self.connection_complete_callback),
-                            MessageHandler(~filters.Regex(r"^/cancel(?:@\w+)?\b"), self.waiting_for_connection_message)
-                        ],
-                        WAITING_UNTILL_HANDLING: [
-                            CommandHandler("waiting_untill_handling_continue", self.meet_handling_complete_callback),
-                            MessageHandler(~filters.Regex(r"^/cancel(?:@\w+)?\b"), self.waiting_for_meet_handling_message),
-                        ]
-                    },
-                    fallbacks=[CommandHandler("cancel", self.cancel)])
+        return move_back(context)
+    
+    def get_conversation_states(self) -> Dict[str, BaseHandler]:
+        return {
+            ConversationState.waiting: [
+                MessageHandler(filters.Regex(r"(?:https:\/\/)?meet\.google\.com\/[a-z]{3}-[a-z]{4}-[a-z]{3}"), self.handle_command)
+            ],
+            ConversationState.google_meet_waiting_for_connection: [
+                CommandHandler("waiting_for_connection_continue", self.connection_complete_callback),
+                MessageHandler(~filters.Regex(r"^/cancel(?:@\w+)?\b"), self.waiting_for_connection_message),
+                CommandHandler("cancel", self.cancel)
+            ],
+            ConversationState.google_meet_waiting_untill_handling: [
+                CommandHandler("waiting_untill_handling_continue", self.meet_handling_complete_callback),
+                MessageHandler(~filters.Regex(r"^/cancel(?:@\w+)?\b"), self.waiting_for_meet_handling_message),
+                CommandHandler("cancel", self.cancel)
+            ]
+        }
