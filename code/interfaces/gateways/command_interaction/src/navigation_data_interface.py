@@ -1,0 +1,13 @@
+from typing import Type
+from abc import ABC, abstractmethod
+from src.domain.conversation_state_interface import ConversationStateInterface
+from src.domain.command_state_interface import CommandStateInterface
+
+class NavigationDataInterface(ABC):
+    @abstractmethod
+    def get_next_state(self) -> ConversationStateInterface | None:
+        pass
+
+    @abstractmethod
+    def get_next_command_state(self) -> CommandStateInterface | None:
+        pass

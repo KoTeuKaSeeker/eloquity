@@ -1,7 +1,7 @@
 from typing import Type
 from abc import ABC, abstractmethod
-from command_interaction_module.src.domain.conversation_state_interface import ConversationStateInterface
-from command_interaction_module.src.domain.command_state_interface import CommandStateInterface
+from src.domain.conversation_state_interface import ConversationStateInterface
+from src.domain.command_state_interface import CommandStateInterface
 
 class NavigationDataInterface(ABC):
     @abstractmethod
