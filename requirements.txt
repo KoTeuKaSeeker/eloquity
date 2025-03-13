@@ -17,3 +17,5 @@ pymilvus
 sentence_transformers
 tzlocal
 thefuzz
+open-webui
+faiss

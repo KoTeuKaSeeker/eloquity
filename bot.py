@@ -31,7 +31,7 @@ from src.task_extractor import TaskExtractor
 from src.audio.audio_recorders.obs_audio_recorder import ObsAudioRecorder
 from src.audio.chrome_audio_extension_server import ChromeAudioExtensionServer
 from src.bitrix.bitrix_manager import BitrixManager
-from src.AI.users_data_base import UsersDataBase
+from src.AI.database.faiss_user_databse import FaissUserDatabase
 from src.conversation.conversation_states_manager import ConversationStatesManager
 from src.commands.remind_command import RemindCommand
 from src.commands.message_transcribe_audio_with_preloaded_names_command import MessageTranscribeAudioWithPreloadedNamesCommand
@@ -57,7 +57,7 @@ OBS_PASSWORD = "jXy9RT0qcKs93U83"
 OBS_RECORDING_DIRECTORY = "C:/Users/Email.LIT/Videos/"
 AUDIO_EXTENSION_PATH = "chrome_recorder_extension/"
 INSTANCE_ID_SCRIPT_PATH = "js_code/get_instance_id_script.js"
-MILVIS_HOST = "192.168.0.11"
+MILVIS_HOST = "localhost"
 MILVIS_PORT = "19530"
 
 def read_instance_id_script(instance_id_script_path: str):
@@ -107,7 +107,8 @@ def app_initialization():
     logging.info("Initializing API connection")
     app = Application.builder().token(telegram_bot_token).build()
     bitrix_manager = BitrixManager(bitrix_webhook_url)
-    users_database = UsersDataBase(bitrix_manager.find_users(count_return_entries=-1), MILVIS_HOST, MILVIS_PORT)
+    users_database = FaissUserDatabase()
+    users_database.add_users(bitrix_manager.find_users(count_return_entries=-1))
     eloquity = EloquityAI(api_key=gptunnel_api_key, bitrix_manager=bitrix_manager, users_database=users_database, model_name='gpt-4o-mini')
     drop_box_manager = DropBoxManager(DROPBOX_DIR, AUDIO_DIR, VIDEO_DIR, dropbox_refresh_token, dropbox_app_key, dropbox_app_secret)
     audio_recorder = ObsAudioRecorder(OBS_HOST, OBS_PORT, OBS_PASSWORD, OBS_RECORDING_DIRECTORY)

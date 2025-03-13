@@ -13,7 +13,7 @@ from src.bitrix.bitrix_user import BitrixUser
 from src.bitrix.bitrix_task import BitrixTask
 from src.AI.identified_names_handler_interface import IdentifiedNamesHandlerInterface
 from tzlocal import get_localzone
-from src.AI.users_data_base import UsersDataBase
+from src.AI.database.user_database_interface import UserDatabaseInterface
 from thefuzz import fuzz
 
 
@@ -70,7 +70,7 @@ class Assignee:
 
 
 class EloquityAI:
-    def __init__(self, api_key: str, bitrix_manager: BitrixManager, users_database: UsersDataBase, model_name: str = 'gpt-4o'):
+    def __init__(self, api_key: str, bitrix_manager: BitrixManager, users_database: UserDatabaseInterface, model_name: str = 'gpt-4o'):
         self.api_url = "https://gptunnel.ru/v1/chat/completions"
         self.api_key = api_key
         self.name_identification_prefix = self._load_prefix("prefixes/name_identification.txt")
@@ -219,7 +219,7 @@ class EloquityAI:
             user: BitrixUser = speaker_to_user[assignee.original_speaker_name]
             
             if user is not None:
-                bitrix_tasks = [BitrixTask(title=task.title, created_by_id=1, responsible_id=user.id, discription=task.content, deadline=task.deadline.time.isoformat()) for task in assignee.tasks]
+                bitrix_tasks = [BitrixTask(title=task.title, created_by_id=1, responsible_id=user.id, discription=task.content, *({} if task.deadline.time is None else dict(deadline=task.deadline.time.isoformat()))) for task in assignee.tasks]
                 for task in bitrix_tasks:
                     self.bitrix_manager.create_task_on_bitrix(task)
         
@@ -271,7 +271,8 @@ class EloquityAI:
     def modify_assignee_with_users(self, assignees: List[Assignee], speaker_to_user: dict):
         for assignee in assignees:
             if speaker_to_user[assignee.original_speaker_name] is not None:
-                assignee.name = speaker_to_user[assignee.original_speaker_name]
+                user = speaker_to_user[assignee.original_speaker_name]
+                assignee.name = f"{user.name} {user.second_name} {user.last_name}"
         
         return assignees
 

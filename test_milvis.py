@@ -5,7 +5,7 @@ from sentence_transformers import SentenceTransformer
 
 
 if __name__ == "__main__":
-    connections.connect(host='192.168.0.11', port='19530')
+    connections.connect(host='localhost', port='19530')
 
     collections = utility.list_collections()
 
