@@ -32,6 +32,9 @@ class ConversationStatesManager():
         self.conversation_states = {}
         self.entry_points = []
     
+    def get_conversation_states(self) -> Dict[ConversationState, List[BaseHandler]]:
+        return self.conversation_states
+
     def add_entry_point(self, handler: BaseHandler):
         self.entry_points.append(handler)
 

@@ -1,18 +1,16 @@
 from typing import List, Dict
-from telegram import Update
-from telegram.ext import ContextTypes, CommandHandler
-from telegram.ext._handlers.basehandler import BaseHandler
 from src.commands.command_interface import CommandInterface
 from src.conversation.conversation_states_manager import ConversationState
+from src.chat_api.chat_interface import ChatInterface
+from src.chat_api.message_handlers.message_handler_interface import MessageHandlerInterface
+from src.chat_api.message_filters.message_filter_interface import MessageFilterInterface
 
 class CancelCommand(CommandInterface):
     def __init__(self):
         pass
     
-    async def handle_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        await update.message.reply_text("Нечего отменять 😁")
+    async def handle_command(self, message: dict, message_type: str, context: dict, chat: ChatInterface):
+        await chat.send_message_to_query("Нечего отменять 😁")
     
-    def get_conversation_states(self) -> Dict[str, BaseHandler]:
-        return {
-            ConversationState.waiting: [CommandHandler('cancel', self.handle_command)]
-        }
+    def get_entry_points(self) -> List[MessageHandlerInterface]:
+        return [MessageHandlerInterface.from_filter(MessageFilterInterface.from_str("command", dict(command="cancel")), self.handle_command)]

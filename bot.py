@@ -6,8 +6,6 @@ logging.getLogger("telegram").setLevel(logging.WARNING)
 import colorlog
 
 from typing import Dict, Type, List
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 import os
 from huggingface_hub import login
 import torch
@@ -35,6 +33,7 @@ from src.AI.database.faiss_user_databse import FaissUserDatabase
 from src.conversation.conversation_states_manager import ConversationStatesManager
 from src.commands.remind_command import RemindCommand
 from src.commands.message_transcribe_audio_with_preloaded_names_command import MessageTranscribeAudioWithPreloadedNamesCommand
+from src.chat_api.chat_api_interface import ChatApiInterface
 
 #TODO #TODO #TODO #TODO #TODO #TODO #TODO #TODO #TODO #TODO
 # Транскрибатор падает, если получает на вход запись, в котором не сказанно ни одного слова. 
@@ -64,10 +63,6 @@ def read_instance_id_script(instance_id_script_path: str):
     with open(instance_id_script_path, "r", encoding="utf-8") as file:
         script = file.read()
     return script
-    
-async def error(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    print(f"Update {update} caused error {context.error}")
-    await update.message.reply_text(str(TelegramBotException(context.error)))
 
 def load_commands(dbx: DropBoxManager, task_extractor: TaskExtractor, bitrix_manager: BitrixManager, bots_manager: GoogleMeetBotsManager) -> List[CommandInterface]:
     commands = []
@@ -78,7 +73,6 @@ def load_commands(dbx: DropBoxManager, task_extractor: TaskExtractor, bitrix_man
     commands.append(DropboxTranscribeAudioCommand(dbx, task_extractor, bitrix_manager, TRANSCRIBE_REQUEST_LOG_DIR))
     commands.append(MessageTranscribeAudioWithPreloadedNamesCommand(dbx, task_extractor, bitrix_manager, ""))
     return commands
-
 
 def app_initialization():
     logging.info("Starting the bot")
@@ -105,7 +99,7 @@ def app_initialization():
     audio_transcriber: DeepgramTranscriber = DeepgramTranscriber(deepgram_api_key)
     
     logging.info("Initializing API connection")
-    app = Application.builder().token(telegram_bot_token).build()
+    chat_api = ChatApiInterface()
     bitrix_manager = BitrixManager(bitrix_webhook_url)
     users_database = FaissUserDatabase()
     users_database.add_users(bitrix_manager.find_users(count_return_entries=-1))
@@ -116,10 +110,9 @@ def app_initialization():
     task_extractor: TaskExtractor = TaskExtractor(audio_transcriber, eloquity, DOCX_TEMPLATE_PATH)
     conversation_states_manager = ConversationStatesManager()
     
-
     commands = load_commands(drop_box_manager, task_extractor, bitrix_manager, google_meet_bots_manager)
 
-    return app, task_extractor, drop_box_manager, commands, google_meet_bots_manager, conversation_states_manager, device 
+    return chat_api, task_extractor, drop_box_manager, commands, google_meet_bots_manager, conversation_states_manager, device 
 
 
 if __name__ == "__main__":
@@ -162,16 +155,14 @@ if __name__ == "__main__":
     logging.getLogger("sieve._openapi").setLevel(logging.CRITICAL)
     logging.getLogger("sieve").setLevel(logging.CRITICAL)
 
-    app, task_extractor, drop_box_manager, commands, google_meet_bots_manager, conversation_states_manager, device = app_initialization()
+    chat_api, task_extractor, drop_box_manager, commands, google_meet_bots_manager, conversation_states_manager, device = app_initialization()
     logging.info("Initialization complete. Bot is ready to work")
-
 
     for command in commands:
         conversation_states_manager.add_conversation_states(command.get_conversation_states())
         conversation_states_manager.add_entry_points(command.get_entry_points())
-    
-    app.add_handler(conversation_states_manager.create_conversation_handler())
-    app.add_error_handler(error)
+
+    chat_api.set_handler_states(conversation_states_manager.get_conversation_states())
 
     logging.info("Polling for new events")
-    app.run_polling(poll_interval=3, drop_pending_updates=True)
+    chat_api.start(poll_interfal=3)

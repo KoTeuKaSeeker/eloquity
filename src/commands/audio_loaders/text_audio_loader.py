@@ -5,20 +5,20 @@ from src.exeptions.dropbox_exceptions.dropbox_is_empty_exception import DropboxI
 from src.chat_api.chat_interface import ChatInterface
 from src.chat_api.message_handlers.message_handler_interface import MessageHandlerInterface
 from src.chat_api.message_filters.message_filter_interface import MessageFilterInterface
+import uuid
+import os
 
-class DropboxAudioLoader(AudioLoaderInterface):
-    dropbox_manager: DropBoxManager
+class TextAudioLoadder(AudioLoaderInterface):
+    temp_dir: str
 
-    def __init__(self, dropbox_manager: DropBoxManager):
-        self.dropbox_manager = dropbox_manager
+    def __init__(self, temp_dir: str):
+        self.temp_dir = temp_dir
 
     async def load_audio(self, message: dict, message_type: str, context: dict, chat: ChatInterface, json_log: dict = None, request_log_dir: str = "", request_id: int = -1) -> str:
-        try:
-            audio_path = self.dropbox_manager.load_user_drop(context, chat)
-            return audio_path
-        except DropboxIsEmptyException as e:
-            await chat.send_message_to_query(e.open_dropbox_request(context, self.dropbox_manager))
-            return None
-        except Exception as e:
-            await chat.send_message_to_query(TelegramBotException(e))
-            return None
+        audio_text = message["audio_text"]
+
+        file_name = str(uuid.uuid4()) + ".txt"
+        file_path = os.path.join(self.temp_dir, file_name)
+        with open(file_path, "w", encoding="utf-8") as file:
+            file.write(audio_text)
+        return file_path

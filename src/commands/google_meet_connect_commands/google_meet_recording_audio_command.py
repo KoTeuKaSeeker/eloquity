@@ -9,12 +9,7 @@ from src.conversation.conversation_states_manager import ConversationStatesManag
 from src.bitrix.bitrix_manager import BitrixManager
 from src.task_extractor import TaskExtractor
 from src.drop_box_manager import DropBoxManager
-from telegram import Update, Message, Chat, MessageEntity
-from telegram.ext import ContextTypes
-from dataclasses import dataclass
-import re
 import datetime
-import pytz
 import asyncio
 import time
 import uuid

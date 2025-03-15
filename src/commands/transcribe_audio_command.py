@@ -1,8 +1,6 @@
 import os
 import uuid
 from typing import List, Dict
-from telegram import Update
-from telegram.ext import ContextTypes, ConversationHandler, MessageHandler, CommandHandler, filters
 from src.commands.command_interface import CommandInterface
 from src.commands.audio_loaders.audio_loader_interface import AudioLoaderInterface
 from src.exeptions.ai_exceptions.ai_cant_handle_request_exception import AICantHandleRequestException
@@ -11,7 +9,9 @@ from src.exeptions.telegram_exceptions.telegram_bot_exception import TelegramBot
 from src.AI.eloquity_ai import Assignee
 from src.bitrix.bitrix_manager import BitrixManager
 from src.task_extractor import TaskExtractor
-from telegram.ext._handlers.basehandler import BaseHandler
+from src.chat_api.message_handlers.message_handler_interface import MessageHandlerInterface
+from src.chat_api.chat_interface import ChatInterface
+from src.chat_api.message_filters.message_filter_interface import MessageFilterInterface
 import logging
 import json
 import requests
@@ -21,13 +21,16 @@ from src.conversation.conversation_states_manager import ConversationState, move
 SPEAKER_CORRECTION_STATE = range(1)
 
 class TranscribeAudioCommand(CommandInterface):
-    class SpeakerCorrectionFilter(filters.MessageFilter):
+    class SpeakerCorrectionFilter(MessageFilterInterface):
         def __init__(self, pattern: str):
             super().__init__()
             self.pattern = pattern
 
-        def filter(self, message) -> bool:
-            for line in message.text.split("\n"):
+        def filter(self, message: dict, message_type: str, user_id: int) -> bool:
+            if message_type != "text":
+                return False
+            
+            for line in message["text"].split("\n"):
                 if not re.match(self.pattern, line):
                     return False
             return True
@@ -39,7 +42,7 @@ class TranscribeAudioCommand(CommandInterface):
         self.bitrix_manager = bitrix_manager
         self.speaker_correction_state = speaker_correction_state
 
-    async def save_log(self, request_log_path: str, request_log_dir: str, json_log: dict, update: Update, reply_transription: bool = True):
+    async def save_log(self, request_log_path: str, request_log_dir: str, json_log: dict, chat: ChatInterface, reply_transription: bool = True):
         with open(request_log_path, "w", encoding="utf-8") as file:
             json.dump(json_log, file, indent=2, ensure_ascii=False)
         
@@ -51,11 +54,11 @@ class TranscribeAudioCommand(CommandInterface):
                 file.write("\n")
         
         if reply_transription:
-            await update.message.reply_text("🧑‍💻Дебаг:\n✒️Транскрибация аудиозаписи:")
-            await update.message.reply_document(document=open(transcription_path, 'rb'))
+            await chat.send_message_to_query("🧑‍💻Дебаг:\n✒️Транскрибация аудиозаписи:")
+            await chat.send_file_to_query(transcription_path)
 
-    async def format_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-            speaker_to_user = context.user_data["speaker_to_user"]
+    async def format_message(self, message: dict, message_type: str, context: dict, chat: ChatInterface):
+            speaker_to_user = context["context"]["speaker_to_user"]
 
             employee_header = "🧑‍💻 Участники беседы, которые являются членами компании:"
             company_speakers_list = ""
@@ -73,11 +76,9 @@ class TranscribeAudioCommand(CommandInterface):
             
             message = f"{employee_header}\n{company_speakers_list}\n\n{not_employee_header}\n{not_company_speakers_list}\n\n{instruction}\n{correction_format}\n\n{okey_instruction}"
 
-            await update.message.reply_text(message)
+            await chat.send_message_to_query(message)
 
-    async def handle_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        await update.message.chat.send_action("typing")
-
+    async def handle_command(self, message: dict, message_type: str, context: dict, chat: ChatInterface):
         request_id = str(uuid.uuid4())
         request_log_dir = os.path.join(self.transcricribe_request_log_dir, request_id)
         request_log_path = os.path.join(request_log_dir, "log.json")
@@ -87,64 +88,68 @@ class TranscribeAudioCommand(CommandInterface):
     
         json_log = dict()
 
-        audio_path = await self.audio_loader.load_audio(update, context, json_log, request_log_dir, request_id)
+        audio_path = await self.audio_loader.load_audio(message, message_type, context, chat, json_log, request_log_dir, request_id)
         if audio_path is None:
-            return move_back(context)
-        await update.message.reply_text("⏮️ Файл был успешно загружен. Идёт обработка звука и анализ текста... 🔃")
+            return str(move_back(context))
+        await chat.send_message_to_query("⏮️ Файл был успешно загружен. Идёт обработка звука и анализ текста... 🔃")
 
         try:
             
-            preloaded_names = context.user_data["preloaded_names"] if "preloaded_names" in context.user_data else []
-            conversation = self.task_extractor.transcribe_audio(audio_path, json_log)
+            preloaded_names = context["user_data"]["preloaded_names"] if "preloaded_names" in context.user_data else []
+            if audio_path.endswith(".txt"):
+                with open(audio_path, "r", encoding="utf-8") as file:
+                    conversation = file.read()
+            else:
+                audio_path = self.task_extractor.transcribe_audio(audio_path, json_log)
             assignees = self.task_extractor.eloquity.generate_assignees(conversation, json_log, preloaded_names)
             speaker_to_user = self.task_extractor.eloquity.correct_assignees_with_bitirx(assignees)
 
-            context.user_data["preloaded_names"] = []
+            context["user_data"]["preloaded_names"] = []
 
-            context.user_data["assignees"] = assignees
-            context.user_data["speaker_to_user"] = speaker_to_user
-            context.user_data["json_log"] = json_log
-            context.user_data["request_log_dir"] = request_log_dir
-            context.user_data["request_log_path"] = request_log_path
-            context.user_data["request_id"] = request_id
+            context["user_data"]["assignees"] = assignees
+            context["user_data"]["speaker_to_user"] = speaker_to_user
+            context["user_data"]["json_log"] = json_log
+            context["user_data"]["request_log_dir"] = request_log_dir
+            context["user_data"]["request_log_path"] = request_log_path
+            context["user_data"]["request_id"] = request_id
 
-            await self.format_message(update, context)
+            await self.format_message(message, message_type, context, chat)
 
-            return move_next(context, self.speaker_correction_state, ConversationState.waiting)
+            return str(move_next(context, self.speaker_correction_state, ConversationState.waiting))
         except AICantHandleRequestException as e:
             logging.warning(f"Transcription request failed because the model couldn't assign tasks. Request ID: {request_id}")
-            await self.save_log(request_log_path, request_log_dir, json_log, update)
-            await update.message.reply_text(str(e))
-            return move_back(context)
+            await self.save_log(request_log_path, request_log_dir, json_log, chat)
+            await chat.send_message_to_query(str(e))
+            return str(move_back(context))
         except requests.exceptions.HTTPError as e:
             if "402 Client Error: Payment Required for url: " in e.args[0]:
                 raise TelegramBotException(GptunnelRequiredPaymentException())
 
-    async def extract_assignee_and_generate_docx_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        await update.message.reply_text("🔃 Идёт извлечение задач из беседы...")
+    async def extract_assignee_and_generate_docx_command(self, message: dict, message_type: str, context: dict, chat: ChatInterface):
+        await chat.send_message_to_query("🔃 Идёт извлечение задач из беседы...")
 
-        assignees = context.user_data["assignees"]
-        json_log = context.user_data["json_log"]
-        request_log_dir = context.user_data["request_log_dir"]
-        request_log_path = context.user_data["request_log_path"]
-        request_id = context.user_data["request_id"]
+        assignees = context["user_data"]["assignees"]
+        json_log = context["user_data"]["json_log"]
+        request_log_dir = context["user_data"]["request_log_dir"]
+        request_log_path = context["user_data"]["request_log_path"]
+        request_id = context["user_data"]["request_id"]
 
         doc = self.task_extractor.eloquity.get_docx_from_assignees(assignees, self.task_extractor.docx_template_path)
 
         doc_path = os.path.join(request_log_dir, "assignees.docx")
         self.task_extractor.save_doc(doc, doc_path)
 
-        await update.message.reply_text("✅ Файл готов:")
-        await self.save_log(request_log_path, request_log_dir, json_log, update)  
-        await update.message.reply_document(document=open(doc_path, 'rb'))
+        await chat.send_message_to_query("✅ Файл готов:")
+        await self.save_log(request_log_path, request_log_dir, json_log, chat)  
+        await chat.send_file_to_query(doc_path)
         logging.info(f"Transcription request complete: {request_id}")
 
 
-    async def correct_speakers(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-        assignees: List[Assignee] = context.user_data["assignees"]
-        speaker_to_user = context.user_data["speaker_to_user"]
+    async def correct_speakers(self, message: dict, message_type: str, context: dict, chat: ChatInterface) -> str:
+        assignees: List[Assignee] = context["user_data"]["assignees"]
+        speaker_to_user = context["user_data"]["speaker_to_user"]
 
-        text = update.message.text
+        text = message["text"]
         matches: List[str] = re.findall(r"^\d+.\s*\S+\s+\S+\s*(?:\[сотрудник\])?\s*$", text, re.DOTALL | re.MULTILINE)
 
         speaker_to_assignee = {assignee.original_speaker_name: assignee for assignee in assignees}
@@ -161,8 +166,8 @@ class TranscribeAudioCommand(CommandInterface):
             employee = groups.group(4)
 
             if speaker_id < 0 or speaker_id >= len(ordered_speakers):
-                await update.message.reply_text(f'🎃 Вы указали участника "{speaker_id+1}. {name} {last_name}" под номером {speaker_id+1}, хотя номер должен лежать в диапазоне [1, {len(ordered_speakers)}]. Повторите попытку, указав верный номер.')
-                return move_next(context, self.speaker_correction_state, ConversationState.waiting)
+                await chat.send_message_to_query(f'🎃 Вы указали участника "{speaker_id+1}. {name} {last_name}" под номером {speaker_id+1}, хотя номер должен лежать в диапазоне [1, {len(ordered_speakers)}]. Повторите попытку, указав верный номер.')
+                return str(move_next(context, self.speaker_correction_state, ConversationState.waiting))
 
             speaker = ordered_speakers[speaker_id]
             user = speaker_to_user[speaker]
@@ -197,45 +202,45 @@ class TranscribeAudioCommand(CommandInterface):
             instruction = "✒️ Возможно вы допустили ошибку в имени - попробуйте ввести ещё раз в том же формате более внимательно 😉. Если же всё корректно - возможно указанных вами участников беседы нет в базе сотрудников компании."
 
             message = f"{header}\n{users_list}\n\n{instruction}"
-            await update.message.reply_text(message)
+            await chat.send_message_to_query(message)
 
-        await self.format_message(update, context)
-        return move_next(context, self.speaker_correction_state, ConversationState.waiting)
+        await self.format_message(message, message_type, context, chat)
+        return str(move_next(context, self.speaker_correction_state, ConversationState.waiting))
 
-    async def continue_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-        assignees = context.user_data["assignees"]
-        speaker_to_user = context.user_data["speaker_to_user"]
+    async def continue_command(self, message: dict, message_type: str, context: dict, chat: ChatInterface) -> str:
+        assignees = context["user_data"]["assignees"]
+        speaker_to_user = context["user_data"]["speaker_to_user"]
         self.task_extractor.eloquity.add_assignee_to_bitrix(assignees, speaker_to_user)
 
-        await self.extract_assignee_and_generate_docx_command(update, context)
-        return move_back(context)
+        await self.extract_assignee_and_generate_docx_command(message, message_type, context, chat)
+        return str(move_back(context))
 
-    async def wrong_correction_format_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    async def wrong_correction_format_message(self, message: dict, message_type: str, context: dict, chat: ChatInterface) -> str:
         header = "⏮️ Вы ввели корректирующее сообщение в неверном формате. Используйте следующий формат для корректироваки ошибок при обнаружении имён:"
         format_list = "1. Иван Иванов [сотрудник]\n2. Владимир Павлов\n5. Василий Петров [сотрудник]\nИ т.д."
         okey_instruction = "✒️ Если вы хотите продолжить обработку без корректировок, выполните команду /continue. Если хотите отменить обработку - выполните команду /cancel."
 
         message = f"{header}\n{format_list}\n\n{okey_instruction}"
         
-        await update.message.reply_text(message)
-        return move_next(context, self.speaker_correction_state, ConversationState.waiting)
+        await chat.send_message_to_query(message)
+        return str(move_next(context, self.speaker_correction_state, ConversationState.waiting))
 
-    async def cancel_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-        await update.message.reply_text("🔖 Обработка аудиозаписи отменена.")
-        return move_back(context)
+    async def cancel_command(self, message: dict, message_type: str, context: dict, chat: ChatInterface) -> str:
+        await chat.send_message_to_query("🔖 Обработка аудиозаписи отменена.")
+        return str(move_back(context))
 
-    def get_conversation_states(self) -> Dict[str, BaseHandler]:
+    def get_conversation_states(self) -> Dict[str, MessageHandlerInterface]:
         return {
-            ConversationState.waiting: [
-                MessageHandler(filters.AUDIO, self.handle_command),
-                MessageHandler(filters.VOICE, self.handle_command),
-                MessageHandler(filters.VIDEO, self.handle_command),
-                MessageHandler(filters.Document.ALL, self.handle_command)
+            ConversationState.value: [
+                MessageHandlerInterface.from_filter(MessageFilterInterface.from_str("audio"), self.handle_command),
+                MessageHandlerInterface.from_filter(MessageFilterInterface.from_str("voice"), self.handle_command),
+                MessageHandlerInterface.from_filter(MessageFilterInterface.from_str("video"), self.handle_command),
+                MessageHandlerInterface.from_filter(MessageFilterInterface.from_str("document.all"), self.handle_command)
             ],
-            self.speaker_correction_state: [
-                MessageHandler(TranscribeAudioCommand.SpeakerCorrectionFilter(r"^\d+.\s*\S+\s+\S+\s*(?:\[сотрудник\])?\s*$"), self.correct_speakers),
-                CommandHandler("continue", self.continue_command),
-                MessageHandler(~filters.Regex(r"^/cancel(?:@\w+)?\b"), self.wrong_correction_format_message),
-                CommandHandler("cancel", self.cancel_command)
+            self.speaker_correction_state.value: [
+                MessageHandlerInterface.from_filter(TranscribeAudioCommand.SpeakerCorrectionFilter(r"^\d+.\s*\S+\s+\S+\s*(?:\[сотрудник\])?\s*$"), self.correct_speakers),
+                MessageHandlerInterface.from_filter(MessageFilterInterface.from_str("command", dict(command="continue")), self.continue_command),
+                MessageHandlerInterface.from_filter(~MessageFilterInterface.from_str("regex", dict(regex=r"^/cancel(?:@\w+)?\b")), self.wrong_correction_format_message),
+                MessageHandlerInterface.from_filter(MessageFilterInterface.from_str("command", dict(command="cancel")), self.cancel_command)
             ]
         }

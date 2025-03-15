@@ -1,14 +1,11 @@
-from typing import Dict, List
 from abc import ABC, abstractmethod
+from chat_api.message_handlers.message_handler_interface import MessageHandlerInterface
 
 class ChatInterface(ABC):
     @abstractmethod
-    def send_message_to_query(self, message: str):
+    async def send_message_to_query(self, message: str):
         pass
 
     @abstractmethod
-    def get_handler_states(self, states: Dict[]):
-
-
-    def handle_message(self, message: str, user_id: int):
-
+    async def send_file_to_query(self, file_path: str):
+        pass        
