@@ -24,9 +24,9 @@ class FormatHandlersManager(FormatHandlerInterface):
             self.recognized_video_format_handler,
         ]
     
-    async def load_audio(self, update: Update, context) -> str:
+    async def load_audio(self, update: Update) -> str:
         for handler in self.handlers:
-            result = await handler.load_audio(update, context)
+            result = await handler.load_audio(update)
             if result is not None:
                 return result
                 

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
-from telegram import Update
+from telegram import Message
 
 class FormatHandlerInterface(ABC):
     @abstractmethod
-    async def load_audio(self, update: Update, context) -> str:
+    async def load_audio(self, message: Message) -> str:
         pass

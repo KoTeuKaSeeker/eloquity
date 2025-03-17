@@ -33,7 +33,7 @@ from src.AI.database.faiss_user_databse import FaissUserDatabase
 from src.conversation.conversation_states_manager import ConversationStatesManager
 from src.commands.remind_command import RemindCommand
 from src.commands.message_transcribe_audio_with_preloaded_names_command import MessageTranscribeAudioWithPreloadedNamesCommand
-from src.chat_api.chat_api_interface import ChatApiInterface
+from chat_api.chat_api.chat_api_interface import ChatApiInterface
 
 #TODO #TODO #TODO #TODO #TODO #TODO #TODO #TODO #TODO #TODO
 # Транскрибатор падает, если получает на вход запись, в котором не сказанно ни одного слова. 
@@ -162,7 +162,8 @@ if __name__ == "__main__":
         conversation_states_manager.add_conversation_states(command.get_conversation_states())
         conversation_states_manager.add_entry_points(command.get_entry_points())
 
-    chat_api.set_handler_states(conversation_states_manager.get_conversation_states())
+    states = conversation_states_manager.create_conversation_states()
+    chat_api.set_handler_states(states)
 
     logging.info("Polling for new events")
     chat_api.start(poll_interfal=3)

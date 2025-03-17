@@ -9,7 +9,7 @@ from src.exeptions.dropbox_exceptions.dropbox_is_empty_exception import DropboxI
 from src.exeptions.telegram_exceptions.telegram_bot_exception import TelegramBotException
 from src.file_extractors.audio_extractor import AudioExtractor
 from src.file_extractors.audio_from_video_extractor import AudioFromVideoExtractor
-from src.chat_api.chat_interface import ChatInterface
+from chat_api.chat.chat_interface import ChatInterface
 
 class DropBoxManager():
     dbx: dropbox.Dropbox

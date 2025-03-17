@@ -13,11 +13,11 @@ class MockMessageHandler(MessageHandlerInterface):
     def get_message_filter(self) -> MessageFilterInterface:
         return self.message_filter
 
-    def preprocess_message(self, message: dict, message_type: str, user_id: int) -> Tuple[dict, str, int]:
+    def preprocess_message(self, message: dict, user_id: int) -> Tuple[dict, str, int]:
         """
             Возвращает состояние, в которое переходит диалог.
         """
-        return message, message_type, user_id
+        return message, user_id
 
     def get_message_handler(self) -> Callable[[dict, str, int], str]:
         return self.handler

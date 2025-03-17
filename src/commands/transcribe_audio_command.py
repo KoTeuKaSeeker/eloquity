@@ -10,13 +10,12 @@ from src.AI.eloquity_ai import Assignee
 from src.bitrix.bitrix_manager import BitrixManager
 from src.task_extractor import TaskExtractor
 from src.chat_api.message_handlers.message_handler_interface import MessageHandlerInterface
-from src.chat_api.chat_interface import ChatInterface
+from chat_api.chat.chat_interface import ChatInterface
 from src.chat_api.message_filters.message_filter_interface import MessageFilterInterface
 import logging
 import json
 import requests
 import re
-from src.conversation.conversation_states_manager import ConversationState, move_next, move_back
 
 SPEAKER_CORRECTION_STATE = range(1)
 
@@ -26,8 +25,8 @@ class TranscribeAudioCommand(CommandInterface):
             super().__init__()
             self.pattern = pattern
 
-        def filter(self, message: dict, message_type: str, user_id: int) -> bool:
-            if message_type != "text":
+        def filter(self, message: dict, user_id: int) -> bool:
+            if "text" not in message:
                 return False
             
             for line in message["text"].split("\n"):
@@ -35,7 +34,7 @@ class TranscribeAudioCommand(CommandInterface):
                     return False
             return True
 
-    def __init__(self, audio_loader: AudioLoaderInterface, task_extractor: TaskExtractor, transcricribe_request_log_dir: str, bitrix_manager: BitrixManager, speaker_correction_state: ConversationState):
+    def __init__(self, audio_loader: AudioLoaderInterface, task_extractor: TaskExtractor, transcricribe_request_log_dir: str, bitrix_manager: BitrixManager, speaker_correction_state: str):
         self.audio_loader = audio_loader
         self.task_extractor = task_extractor
         self.transcricribe_request_log_dir = transcricribe_request_log_dir
@@ -57,8 +56,8 @@ class TranscribeAudioCommand(CommandInterface):
             await chat.send_message_to_query("🧑‍💻Дебаг:\n✒️Транскрибация аудиозаписи:")
             await chat.send_file_to_query(transcription_path)
 
-    async def format_message(self, message: dict, message_type: str, context: dict, chat: ChatInterface):
-            speaker_to_user = context["context"]["speaker_to_user"]
+    async def format_message(self, message: dict, context: dict, chat: ChatInterface):
+            speaker_to_user = context["user_data"]["speaker_to_user"]
 
             employee_header = "🧑‍💻 Участники беседы, которые являются членами компании:"
             company_speakers_list = ""
@@ -78,7 +77,7 @@ class TranscribeAudioCommand(CommandInterface):
 
             await chat.send_message_to_query(message)
 
-    async def handle_command(self, message: dict, message_type: str, context: dict, chat: ChatInterface):
+    async def handle_command(self, message: dict, context: dict, chat: ChatInterface):
         request_id = str(uuid.uuid4())
         request_log_dir = os.path.join(self.transcricribe_request_log_dir, request_id)
         request_log_path = os.path.join(request_log_dir, "log.json")
@@ -88,9 +87,9 @@ class TranscribeAudioCommand(CommandInterface):
     
         json_log = dict()
 
-        audio_path = await self.audio_loader.load_audio(message, message_type, context, chat, json_log, request_log_dir, request_id)
+        audio_path = await self.audio_loader.load_audio(message, context, chat, json_log, request_log_dir, request_id)
         if audio_path is None:
-            return str(move_back(context))
+            return chat.move_back(context)
         await chat.send_message_to_query("⏮️ Файл был успешно загружен. Идёт обработка звука и анализ текста... 🔃")
 
         try:
@@ -113,19 +112,19 @@ class TranscribeAudioCommand(CommandInterface):
             context["user_data"]["request_log_path"] = request_log_path
             context["user_data"]["request_id"] = request_id
 
-            await self.format_message(message, message_type, context, chat)
+            await self.format_message(message, context, chat)
 
-            return str(move_next(context, self.speaker_correction_state, ConversationState.waiting))
+            return chat.move_next(context, self.speaker_correction_state, "entry_point")
         except AICantHandleRequestException as e:
             logging.warning(f"Transcription request failed because the model couldn't assign tasks. Request ID: {request_id}")
             await self.save_log(request_log_path, request_log_dir, json_log, chat)
             await chat.send_message_to_query(str(e))
-            return str(move_back(context))
+            return chat.move_back(context)
         except requests.exceptions.HTTPError as e:
             if "402 Client Error: Payment Required for url: " in e.args[0]:
                 raise TelegramBotException(GptunnelRequiredPaymentException())
 
-    async def extract_assignee_and_generate_docx_command(self, message: dict, message_type: str, context: dict, chat: ChatInterface):
+    async def extract_assignee_and_generate_docx_command(self, message: dict, context: dict, chat: ChatInterface):
         await chat.send_message_to_query("🔃 Идёт извлечение задач из беседы...")
 
         assignees = context["user_data"]["assignees"]
@@ -145,7 +144,7 @@ class TranscribeAudioCommand(CommandInterface):
         logging.info(f"Transcription request complete: {request_id}")
 
 
-    async def correct_speakers(self, message: dict, message_type: str, context: dict, chat: ChatInterface) -> str:
+    async def correct_speakers(self, message: dict, context: dict, chat: ChatInterface) -> str:
         assignees: List[Assignee] = context["user_data"]["assignees"]
         speaker_to_user = context["user_data"]["speaker_to_user"]
 
@@ -167,7 +166,7 @@ class TranscribeAudioCommand(CommandInterface):
 
             if speaker_id < 0 or speaker_id >= len(ordered_speakers):
                 await chat.send_message_to_query(f'🎃 Вы указали участника "{speaker_id+1}. {name} {last_name}" под номером {speaker_id+1}, хотя номер должен лежать в диапазоне [1, {len(ordered_speakers)}]. Повторите попытку, указав верный номер.')
-                return str(move_next(context, self.speaker_correction_state, ConversationState.waiting))
+                return chat.move_next(context, self.speaker_correction_state, "entry_point")
 
             speaker = ordered_speakers[speaker_id]
             user = speaker_to_user[speaker]
@@ -204,18 +203,18 @@ class TranscribeAudioCommand(CommandInterface):
             message = f"{header}\n{users_list}\n\n{instruction}"
             await chat.send_message_to_query(message)
 
-        await self.format_message(message, message_type, context, chat)
-        return str(move_next(context, self.speaker_correction_state, ConversationState.waiting))
+        await self.format_message(message, context, chat)
+        return chat.move_next(context, self.speaker_correction_state, "entry_point")
 
-    async def continue_command(self, message: dict, message_type: str, context: dict, chat: ChatInterface) -> str:
+    async def continue_command(self, message: dict, context: dict, chat: ChatInterface) -> str:
         assignees = context["user_data"]["assignees"]
         speaker_to_user = context["user_data"]["speaker_to_user"]
         self.task_extractor.eloquity.add_assignee_to_bitrix(assignees, speaker_to_user)
 
-        await self.extract_assignee_and_generate_docx_command(message, message_type, context, chat)
-        return str(move_back(context))
+        await self.extract_assignee_and_generate_docx_command(message, context, chat)
+        return chat.move_back(context)
 
-    async def wrong_correction_format_message(self, message: dict, message_type: str, context: dict, chat: ChatInterface) -> str:
+    async def wrong_correction_format_message(self, message: dict, context: dict, chat: ChatInterface) -> str:
         header = "⏮️ Вы ввели корректирующее сообщение в неверном формате. Используйте следующий формат для корректироваки ошибок при обнаружении имён:"
         format_list = "1. Иван Иванов [сотрудник]\n2. Владимир Павлов\n5. Василий Петров [сотрудник]\nИ т.д."
         okey_instruction = "✒️ Если вы хотите продолжить обработку без корректировок, выполните команду /continue. Если хотите отменить обработку - выполните команду /cancel."
@@ -223,21 +222,21 @@ class TranscribeAudioCommand(CommandInterface):
         message = f"{header}\n{format_list}\n\n{okey_instruction}"
         
         await chat.send_message_to_query(message)
-        return str(move_next(context, self.speaker_correction_state, ConversationState.waiting))
+        return chat.move_next(context, self.speaker_correction_state, "entry_point")
 
-    async def cancel_command(self, message: dict, message_type: str, context: dict, chat: ChatInterface) -> str:
+    async def cancel_command(self, message: dict, context: dict, chat: ChatInterface) -> str:
         await chat.send_message_to_query("🔖 Обработка аудиозаписи отменена.")
-        return str(move_back(context))
+        return chat.move_back(context)
 
     def get_conversation_states(self) -> Dict[str, MessageHandlerInterface]:
         return {
-            ConversationState.value: [
+            "entry_point": [
                 MessageHandlerInterface.from_filter(MessageFilterInterface.from_str("audio"), self.handle_command),
                 MessageHandlerInterface.from_filter(MessageFilterInterface.from_str("voice"), self.handle_command),
                 MessageHandlerInterface.from_filter(MessageFilterInterface.from_str("video"), self.handle_command),
                 MessageHandlerInterface.from_filter(MessageFilterInterface.from_str("document.all"), self.handle_command)
             ],
-            self.speaker_correction_state.value: [
+            self.speaker_correction_state: [
                 MessageHandlerInterface.from_filter(TranscribeAudioCommand.SpeakerCorrectionFilter(r"^\d+.\s*\S+\s+\S+\s*(?:\[сотрудник\])?\s*$"), self.correct_speakers),
                 MessageHandlerInterface.from_filter(MessageFilterInterface.from_str("command", dict(command="continue")), self.continue_command),
                 MessageHandlerInterface.from_filter(~MessageFilterInterface.from_str("regex", dict(regex=r"^/cancel(?:@\w+)?\b")), self.wrong_correction_format_message),

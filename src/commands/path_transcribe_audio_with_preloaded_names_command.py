@@ -3,7 +3,6 @@ from src.task_extractor import TaskExtractor
 from src.drop_box_manager import DropBoxManager
 from src.commands.transcribe_audio_with_preloaded_names_command import TranscribeAudioWithPreloadedNamesCommand
 from src.bitrix.bitrix_manager import BitrixManager
-from src.conversation.conversation_states_manager import ConversationState
 
 class PathTranscribeAudioWithPreloadedNamesCommand(TranscribeAudioWithPreloadedNamesCommand):
     path_audio_loader: PathAudioLoader
@@ -11,4 +10,4 @@ class PathTranscribeAudioWithPreloadedNamesCommand(TranscribeAudioWithPreloadedN
     def __init__(self, task_extractor: TaskExtractor, bitrix_manager: BitrixManager, transcricribe_request_log_dir: str):
         self.path_audio_loader = PathAudioLoader()
         super().__init__(task_extractor, bitrix_manager, transcricribe_request_log_dir, self.path_audio_loader)
-        self.speaker_correction_state = ConversationState.path_speaker_correction_state_with_preloaded_names
+        self.speaker_correction_state = "path_speaker_correction_state_with_preloaded_names"

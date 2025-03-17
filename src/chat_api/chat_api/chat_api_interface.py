@@ -8,5 +8,5 @@ class ChatApiInterface(ABC):
         pass
 
     @abstractmethod
-    def start(self, poll_interfal: int = 3):
+    def start(self, poll_interval: int = 3):
         pass

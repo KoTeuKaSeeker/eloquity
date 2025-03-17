@@ -10,8 +10,8 @@ class InvertedFilter(MessageFilterInterface):
     def from_str(cls, filter_name: str, filter_args: dict = {}):
         return None
 
-    def filter(self, message: dict, message_type: str, user_id: int) -> bool:
-        return not self.message_filter.filter(message, message_type, user_id)
+    def filter(self, message: dict, user_id: int) -> bool:
+        return not self.message_filter.filter(message, user_id)
 
     def __invert__(self):
         return InvertedFilter(self)
