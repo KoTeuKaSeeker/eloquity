@@ -17,7 +17,7 @@ class TelegramChat(ChatInterface):
 
     async def send_file_to_query(self, file_path: str, file_name: str = "some_file"):
         with open(file_path, "rb") as file:
-            await self.update.message.reply_document(document=file, filename=file_name)
+            await self.update.message.reply_document(document=file, read_timeout=10)
 
     async def send_message_to_event_loop(self, message: dict, context: dict, chat: ChatInterface):
         """
@@ -30,8 +30,8 @@ class TelegramChat(ChatInterface):
         if "command" in message:
             text = message["command"]
             message_entity = MessageEntity(type="bot_command", offset=0, length=len(text))
-        if "audio_path" in message:
-            text = message["audio_path"]
+        if "audio_container" in message:
+            text = message["audio_container"].get_file_path()
             message_entity = MessageEntity(type="audio", offset=0, length=len(text))
         if "text" in message:
             text = message["text"]

@@ -1,6 +1,5 @@
 from typing import Any
 from abc import ABC, abstractmethod
-from chat_api.message_handlers.message_handler_interface import MessageHandlerInterface
 
 class ChatInterface(ABC):
     @abstractmethod
@@ -39,15 +38,24 @@ class ChatInterface(ABC):
         new_state = self.move_back(context)
         return new_state
 
+    def __init_states(self, context: dict):
+        if "state_stack" not in context["user_data"]:
+            context["user_data"]["state_stack"] = []
+        if "state" not in context["user_data"]:
+            context["user_data"]["state"] = []
+
+
     def move_next(self, context: dict, move_to: str, prev_state: str):
         move_to_state = self.get_entry_point_state() if move_to == "entry_point" else move_to
         prev = self.get_entry_point_state() if prev_state == "entry_point" else prev_state
 
+        self.__init_states(context)
         context["user_data"]["state_stack"].append(prev)
-        context["user_data"]['state'] = move_to_state
+        context["user_data"]["state"] = move_to_state
         return move_to_state
 
     def move_back(self, context: dict):
+        self.__init_states(context)
         prev_state = context["user_data"]["state_stack"].pop()
         context["user_data"]['state'] = prev_state
         return prev_state

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from chat_api.chat.chat_interface import ChatInterface
+from src.chat_api.chat.chat_interface import ChatInterface
 
 class AudioLoaderInterface(ABC):
     @abstractmethod

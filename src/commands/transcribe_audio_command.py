@@ -9,9 +9,10 @@ from src.exeptions.telegram_exceptions.telegram_bot_exception import TelegramBot
 from src.AI.eloquity_ai import Assignee
 from src.bitrix.bitrix_manager import BitrixManager
 from src.task_extractor import TaskExtractor
-from src.chat_api.message_handlers.message_handler_interface import MessageHandlerInterface
-from chat_api.chat.chat_interface import ChatInterface
-from src.chat_api.message_filters.message_filter_interface import MessageFilterInterface
+from src.chat_api.message_handler import MessageHandler
+from src.chat_api.chat.chat_interface import ChatInterface
+from src.chat_api.message_filters.interfaces.message_filter_factory_interface import MessageFilterFactoryInterface
+from src.chat_api.message_filters.base_filters.base_message_filter import BaseMessageFilter
 import logging
 import json
 import requests
@@ -20,12 +21,12 @@ import re
 SPEAKER_CORRECTION_STATE = range(1)
 
 class TranscribeAudioCommand(CommandInterface):
-    class SpeakerCorrectionFilter(MessageFilterInterface):
+    class SpeakerCorrectionFilter(BaseMessageFilter):
         def __init__(self, pattern: str):
             super().__init__()
             self.pattern = pattern
 
-        def filter(self, message: dict, user_id: int) -> bool:
+        def filter(self, message: dict) -> bool:
             if "text" not in message:
                 return False
             
@@ -34,7 +35,8 @@ class TranscribeAudioCommand(CommandInterface):
                     return False
             return True
 
-    def __init__(self, audio_loader: AudioLoaderInterface, task_extractor: TaskExtractor, transcricribe_request_log_dir: str, bitrix_manager: BitrixManager, speaker_correction_state: str):
+    def __init__(self, filter_factory: MessageFilterFactoryInterface, audio_loader: AudioLoaderInterface, task_extractor: TaskExtractor, transcricribe_request_log_dir: str, bitrix_manager: BitrixManager, speaker_correction_state: str):
+        self.filter_factory = filter_factory
         self.audio_loader = audio_loader
         self.task_extractor = task_extractor
         self.transcricribe_request_log_dir = transcricribe_request_log_dir
@@ -87,19 +89,19 @@ class TranscribeAudioCommand(CommandInterface):
     
         json_log = dict()
 
-        audio_path = await self.audio_loader.load_audio(message, context, chat, json_log, request_log_dir, request_id)
+        audio_path = await message["audio_container"].get_file_path()
         if audio_path is None:
             return chat.move_back(context)
         await chat.send_message_to_query("⏮️ Файл был успешно загружен. Идёт обработка звука и анализ текста... 🔃")
 
         try:
             
-            preloaded_names = context["user_data"]["preloaded_names"] if "preloaded_names" in context.user_data else []
+            preloaded_names = context["user_data"]["preloaded_names"] if "preloaded_names" in context["user_data"] else []
             if audio_path.endswith(".txt"):
                 with open(audio_path, "r", encoding="utf-8") as file:
                     conversation = file.read()
             else:
-                audio_path = self.task_extractor.transcribe_audio(audio_path, json_log)
+                conversation = self.task_extractor.transcribe_audio(audio_path, json_log)
             assignees = self.task_extractor.eloquity.generate_assignees(conversation, json_log, preloaded_names)
             speaker_to_user = self.task_extractor.eloquity.correct_assignees_with_bitirx(assignees)
 
@@ -228,18 +230,18 @@ class TranscribeAudioCommand(CommandInterface):
         await chat.send_message_to_query("🔖 Обработка аудиозаписи отменена.")
         return chat.move_back(context)
 
-    def get_conversation_states(self) -> Dict[str, MessageHandlerInterface]:
+    def get_conversation_states(self) -> Dict[str, MessageHandler]:
         return {
             "entry_point": [
-                MessageHandlerInterface.from_filter(MessageFilterInterface.from_str("audio"), self.handle_command),
-                MessageHandlerInterface.from_filter(MessageFilterInterface.from_str("voice"), self.handle_command),
-                MessageHandlerInterface.from_filter(MessageFilterInterface.from_str("video"), self.handle_command),
-                MessageHandlerInterface.from_filter(MessageFilterInterface.from_str("document.all"), self.handle_command)
+                MessageHandler(self.filter_factory.create_filter("audio"), self.handle_command),
+                MessageHandler(self.filter_factory.create_filter("voice"), self.handle_command),
+                MessageHandler(self.filter_factory.create_filter("video"), self.handle_command),
+                MessageHandler(self.filter_factory.create_filter("document.all"), self.handle_command)
             ],
             self.speaker_correction_state: [
-                MessageHandlerInterface.from_filter(TranscribeAudioCommand.SpeakerCorrectionFilter(r"^\d+.\s*\S+\s+\S+\s*(?:\[сотрудник\])?\s*$"), self.correct_speakers),
-                MessageHandlerInterface.from_filter(MessageFilterInterface.from_str("command", dict(command="continue")), self.continue_command),
-                MessageHandlerInterface.from_filter(~MessageFilterInterface.from_str("regex", dict(regex=r"^/cancel(?:@\w+)?\b")), self.wrong_correction_format_message),
-                MessageHandlerInterface.from_filter(MessageFilterInterface.from_str("command", dict(command="cancel")), self.cancel_command)
+                MessageHandler(TranscribeAudioCommand.SpeakerCorrectionFilter(r"^\d+.\s*\S+\s+\S+\s*(?:\[сотрудник\])?\s*$"), self.correct_speakers),
+                MessageHandler(self.filter_factory.create_filter("command", dict(command="continue")), self.continue_command),
+                MessageHandler(~self.filter_factory.create_filter("regex", dict(pattern=r"^/cancel(?:@\w+)?\b")), self.wrong_correction_format_message),
+                MessageHandler(self.filter_factory.create_filter("command", dict(command="cancel")), self.cancel_command)
             ]
         }

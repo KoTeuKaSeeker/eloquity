@@ -82,6 +82,7 @@ class EloquityAI:
         self.bitrix_manager = bitrix_manager
         self.users_database = users_database
         self.bitrix_users = self.bitrix_manager.find_users(count_return_entries=-1)
+        self.users_database.add_users(self.bitrix_users)
     
     def get_bitrix_users_dict(self, bitrix_users: List[BitrixUser]):
         full_names_to_bitrix_users = {}

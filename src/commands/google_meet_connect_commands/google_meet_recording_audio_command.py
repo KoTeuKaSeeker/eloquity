@@ -5,7 +5,6 @@ from telegram.ext import ConversationHandler, MessageHandler, filters, CommandHa
 from src.google_meet.google_meet_bots_manager import GoogleMeetBotsManager
 from src.google_meet.google_meet_bot import GoogleMeetBot
 from src.commands.path_transcribe_audio_with_preloaded_names_command import PathTranscribeAudioWithPreloadedNamesCommand
-from src.conversation.conversation_states_manager import ConversationStatesManager, ConversationState, move_next, move_back
 from src.bitrix.bitrix_manager import BitrixManager
 from src.task_extractor import TaskExtractor
 from src.drop_box_manager import DropBoxManager
