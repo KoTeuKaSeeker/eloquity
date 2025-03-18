@@ -32,11 +32,13 @@ from src.AI.database.faiss_user_databse import FaissUserDatabase
 from src.conversation.conversation_states_manager import ConversationStatesManager
 from src.commands.remind_command import RemindCommand
 from src.commands.message_transcribe_audio_with_preloaded_names_command import MessageTranscribeAudioWithPreloadedNamesCommand
-from src.chat_api.chat_api.telegram_chat_api import TelegramChatApi
 from src.chat_api.message_filters.interfaces.message_filter_factory_interface import MessageFilterFactoryInterface
 from src.chat_api.message_filters.factories.base_message_filter_factory import BaseMessageFilterFactory
 from src.commands.google_meet_connect_commands.google_meet_connect_command import GoogleMeetConnectCommand
 from src.commands.google_meet_connect_commands.google_meet_recording_audio_command import GoogleMeetRecordingAudioCommand
+
+from src.chat_api.chat_api.telegram_chat_api import TelegramChatApi
+from src.chat_api.chat_api.openwebui_chat_api import OpenwebuiChatApi
 
 #TODO #TODO #TODO #TODO #TODO #TODO #TODO #TODO #TODO #TODO
 # Транскрибатор падает, если получает на вход запись, в котором не сказанно ни одного слова. 
@@ -61,6 +63,8 @@ AUDIO_EXTENSION_PATH = "chrome_recorder_extension/"
 INSTANCE_ID_SCRIPT_PATH = "js_code/get_instance_id_script.js"
 MILVIS_HOST = "localhost"
 MILVIS_PORT = "19530"
+OPEN_WEB_UI_HOST = "localhost"
+OPEN_WEB_UI_PORT = "8001"
 
 def init_logger():
     LOG_FORMAT = "%(asctime)s [%(levelname)s] %(message)s"
@@ -128,11 +132,9 @@ class ApplicationContainer(containers.DeclarativeContainer):
     )
 
     chat_api = providers.Singleton(
-        TelegramChatApi,
-        token=config.telegram_bot_token,
-        audio_dir=providers.Object(AUDIO_DIR),
-        video_dir=providers.Object(VIDEO_DIR),
-        audio_extenstion=providers.Object(".wav"),
+        OpenwebuiChatApi,
+        openwebui_coordinator_url=providers.Object(f"{OPEN_WEB_UI_HOST}:{OPEN_WEB_UI_PORT}"),
+        temp_path=providers.Object(AUDIO_DIR)
     )
 
     bitrix_manager = providers.Singleton(
