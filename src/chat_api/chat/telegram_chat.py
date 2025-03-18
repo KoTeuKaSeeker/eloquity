@@ -1,8 +1,9 @@
 from typing import Any
 from src.chat_api.chat.chat_interface import ChatInterface
-from telegram import Update, Message, Chat, MessageEntity, Audio, Voice, Video, Document
+from telegram import Update, Message, Chat, MessageEntity, Audio, Voice, Video, Document, User
 from telegram.ext import CallbackContext, ConversationHandler
 import datetime
+import asyncio
 
 class TelegramChat(ChatInterface):
     update: Update
@@ -13,11 +14,11 @@ class TelegramChat(ChatInterface):
         self.context = context
 
     async def send_message_to_query(self, message: str):
-        await self.update.message.reply_text(message)
+        await self.update.message.reply_text(message, connect_timeout=60)
 
     async def send_file_to_query(self, file_path: str, file_name: str = "some_file"):
         with open(file_path, "rb") as file:
-            await self.update.message.reply_document(document=file, read_timeout=10)
+            await self.update.message.reply_document(document=file, read_timeout=60)
 
     async def send_message_to_event_loop(self, message: dict, context: dict, chat: ChatInterface):
         """
@@ -31,24 +32,28 @@ class TelegramChat(ChatInterface):
             text = message["command"]
             message_entity = MessageEntity(type="bot_command", offset=0, length=len(text))
         if "audio_container" in message:
-            text = message["audio_container"].get_file_path()
+            text = await message["audio_container"].get_file_path()
             message_entity = MessageEntity(type="audio", offset=0, length=len(text))
         if "text" in message:
             text = message["text"]
 
         update = Update(
-            update_id=123456789,
+            update_id=self.update.update_id + 1,
             message=Message(
-                message_id=1,
+                message_id=self.update.message.message_id,
                 date=datetime.datetime.now(),
-                chat=Chat(id=context["user_id"], type="private"),
-                from_user=context["user_id"],
+                chat=self.update.effective_chat,
+                message_thread_id=self.update.message.message_thread_id,
+                from_user=self.update.effective_user,
                 entities=[message_entity],
                 text=text
             )
         )
         
-        update.message._bot = self.context.bot
+        update.message._bot = self.update.message.get_bot()
+
+        await asyncio.sleep(3)
+
         await self.context.application.update_queue.put(update)
 
     def get_entry_point_state(self) -> Any:
