@@ -1,5 +1,5 @@
 from typing import List
-from telegram import Update
+from telegram import Message
 from src.format_handlers.format_handler_interface import FormatHandlerInterface
 from src.format_handlers.audio_handlers.recognized_audio_format_handler import RecognizedAudioFormatHandler
 from src.format_handlers.audio_handlers.not_recognized_audio_format_handler import NotRecognizedAudioFormatHandler
@@ -24,9 +24,9 @@ class FormatHandlersManager(FormatHandlerInterface):
             self.recognized_video_format_handler,
         ]
     
-    async def load_audio(self, update: Update) -> str:
+    async def load_audio(self, message: Message) -> str:
         for handler in self.handlers:
-            result = await handler.load_audio(update)
+            result = await handler.load_audio(message)
             if result is not None:
                 return result
                 

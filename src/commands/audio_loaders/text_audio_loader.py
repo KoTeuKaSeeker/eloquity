@@ -3,8 +3,8 @@ from src.commands.audio_loaders.audio_loader_interface import AudioLoaderInterfa
 from src.exeptions.telegram_exceptions.telegram_bot_exception import TelegramBotException
 from src.exeptions.dropbox_exceptions.dropbox_is_empty_exception import DropboxIsEmptyException
 from chat_api.chat.chat_interface import ChatInterface
-from src.chat_api.message_handlers.message_handler_interface import MessageHandlerInterface
-from src.chat_api.message_filters.message_filter_interface import MessageFilterInterface
+
+from src.chat_api.message_handler import MessageHandler
 import uuid
 import os
 

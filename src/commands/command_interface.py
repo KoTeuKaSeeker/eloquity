@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict
-from chat_api.message_handlers.message_handler_interface import MessageHandlerInterface
-from src.chat_api.message_filters.message_filter_interface import MessageFilterInterface
+from src.chat_api.message_handler import MessageHandler
+from src.chat_api.message_handler import MessageHandler
 
 class CommandInterface(ABC):
-    def get_entry_points(self) -> List[MessageHandlerInterface]:
+    def get_entry_points(self) -> List[MessageHandler]:
         return []
 
-    def get_conversation_states(self) -> Dict[str, MessageHandlerInterface]:
+    def get_conversation_states(self) -> Dict[str, MessageHandler]:
         return {}

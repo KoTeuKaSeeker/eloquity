@@ -3,6 +3,7 @@ python-telegram-bot
 pydub
 huggingface-hub
 python-dotenv
+dependency-injector
 moviepy
 dropbox
 whisperx

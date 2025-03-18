@@ -1,12 +1,12 @@
 from typing import List
 from src.commands.command_interface import CommandInterface
-from chat_api.chat.chat_interface import ChatInterface
-from src.chat_api.message_handlers.message_handler_interface import MessageHandlerInterface
-from src.chat_api.message_filters.message_filter_interface import MessageFilterInterface
+from src.chat_api.chat.chat_interface import ChatInterface
+from src.chat_api.message_handler import MessageHandler
+from src.chat_api.message_filters.interfaces.message_filter_factory_interface import MessageFilterFactoryInterface
 
 class StartCommand(CommandInterface):
-    def __init__(self):
-        pass
+    def __init__(self, filter_factory: MessageFilterFactoryInterface):
+        self.filter_factory = filter_factory
     
     async def handle_command(self, message: dict, context: dict, chat: ChatInterface):
         await chat.send_message_to_query("Привет 👋. Это бот для анализа аудио и видео сообщений и извлечения из них информации по задаче.")
@@ -14,5 +14,5 @@ class StartCommand(CommandInterface):
         context["context"]['state'] = "entry_point"
         return "entry_point"
 
-    def get_entry_points(self) -> List[MessageHandlerInterface]:
-        return [MessageHandlerInterface.from_filter(MessageFilterInterface.from_str("command", dict(command="start")), self.handle_command)]
+    def get_entry_points(self) -> List[MessageHandler]:
+        return [MessageHandler(self.filter_factory.create_filter("command", dict(command="start")), self.handle_command)]

@@ -9,7 +9,7 @@ from src.exeptions.dropbox_exceptions.dropbox_is_empty_exception import DropboxI
 from src.exeptions.telegram_exceptions.telegram_bot_exception import TelegramBotException
 from src.file_extractors.audio_extractor import AudioExtractor
 from src.file_extractors.audio_from_video_extractor import AudioFromVideoExtractor
-from chat_api.chat.chat_interface import ChatInterface
+from src.chat_api.chat.chat_interface import ChatInterface
 
 class DropBoxManager():
     dbx: dropbox.Dropbox
@@ -30,7 +30,7 @@ class DropBoxManager():
         self.dbx = dropbox.Dropbox(oauth2_refresh_token=self.refresh_token, app_key=self.app_key, app_secret=self.app_secret)
 
     def get_user_folder(self, context: dict) -> str:
-        dropbox_user_folder = os.path.join(self.remote_dropbox_folder, f"user_{context["user_id"]}")
+        dropbox_user_folder = os.path.join(self.remote_dropbox_folder, f"user_{context['user_id']}")
         return dropbox_user_folder
     
     def open_drop_box_file_request(self, context: dict) -> str:

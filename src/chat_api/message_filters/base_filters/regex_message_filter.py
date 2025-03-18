@@ -1,7 +1,7 @@
-from src.chat_api.message_filters.telegram_filters.telegram_message_filter import TelegramMessageFilter
+from src.chat_api.message_filters.base_filters.base_message_filter import BaseMessageFilter
 import re
 
-class TelegramRegexMessageFilter(TelegramMessageFilter):
+class RegexMessageFilter(BaseMessageFilter):
     pattern: str
 
     def __init__(self, pattern: str):
