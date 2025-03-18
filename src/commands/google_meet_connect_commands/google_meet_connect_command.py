@@ -33,10 +33,6 @@ class GoogleMeetConnectCommand(CommandInterface):
 
     def __init__(self, 
                 bots_manager: GoogleMeetBotsManager, 
-                dropbox_manager: DropBoxManager, 
-                task_extractor: TaskExtractor,
-                bitrix_manager: BitrixManager, 
-                transcricribe_request_log_dir: str,
                 filter_factory: MessageFilterFactoryInterface,
                 max_message_waiting_time: datetime.timedelta = datetime.timedelta(minutes=5),
                 ):
@@ -45,58 +41,7 @@ class GoogleMeetConnectCommand(CommandInterface):
         self.active_user_handlers = {}
         self.filter_factory = filter_factory
 
-    async def connect_bot(self, update: Update, meet_link: str) -> GoogleMeetBot:
-        free_bot = self.bots_manager.get_free_bot()
-        
-        if free_bot is None:
-            await update.message.reply_text("⏮️ Не могу подключиться к конференции, так как все Google Meet боты заняты. Повторите попытку позже.")
-            return None
-        
-        self.active_user_handlers[update.message.from_user.id] = GoogleMeetConnectCommand.UserHandleDiscription(free_bot, [asyncio.current_task()])
-        await asyncio.to_thread(free_bot.connect_to_meet, meet_link)
-
-        return free_bot
-    
-    async def put_update_message(self, command_text: str,  update: Update, context: ContextTypes.DEFAULT_TYPE):
-        update = Update(
-            update_id=123456789,
-            message=Message(
-                message_id=1,
-                date=datetime.datetime.now(),
-                chat=Chat(id=update.effective_chat.id, type="private"),
-                from_user=update.effective_user,
-                entities=[MessageEntity(type="bot_command", offset=0, length=len(command_text))],
-                text=command_text
-            )
-        )
-
-        update.message._bot = context.bot
-
-        await context.application.update_queue.put(update)
-
-    async def handle_meet(self, update: Update, context: ContextTypes.DEFAULT_TYPE, free_bot: GoogleMeetBot, meet_link: str):
-        member_names = free_bot.get_memeber_names()[1:]
-        context.user_data["preloaded_names"] = member_names
-
-        await update.message.reply_text("✅ Обработка информации встречи завершена. Когда будете готовы, отравьте аудиозапись беседы со встречи следующим сообщением.\nЕсли же вы хотите завершить обработку встречи, выполните команду /cancel.")
-        await update.message.reply_text("Для дебага: участники встречи:\n" + "\n".join([f"{i+1}. {name}" for i, name in enumerate(member_names)]))
-
-        free_bot.disconnect()
-        del self.active_user_handlers[update.message.from_user.id]
-
-        await self.put_update_message("/waiting_untill_handling_continue", update, context)
-
-    async def background_connection_to_bot(self, update: Update, context: ContextTypes.DEFAULT_TYPE, meet_link: str):
-        free_bot = await self.connect_bot(update, meet_link)
-
-        await self.print_bot_end_connection_message(update)
-
-        meet_handling_task = asyncio.create_task(self.handle_meet(update, context, free_bot, meet_link))
-        self.active_user_handlers[update.message.from_user.id].connection_tasks = [meet_handling_task]
-
-        await self.put_update_message("/waiting_for_connection_continue", update, context)
-
-    async def handle_command(self, message: dict, context: dict, chat: ChatInterface):
+    async def handle_command(self, message: dict, context: dict, chat: ChatInterface) -> str:
         meet_link = message["text"]
         message_date = message["forward_origin_date"] if "forward_origin_date" in message else message["date"]
         message_waiting_time = datetime.datetime.now(pytz.UTC) - message_date
@@ -109,53 +54,66 @@ class GoogleMeetConnectCommand(CommandInterface):
             await chat.send_message_to_query(f"⏮️ Прошло слишком много времени с момента отправки приглашения на встречу ({days} дн. {hours} ч. {minutes} мин.), возможно встреча уже закончилась.\n❄️ Если это не так, пожалуйста, отправьте приглашение на встречу заново (не перессылкой, а новым сообщением).")
             return chat.move_back(context)
 
-        await chat.send_message_to_query("Ссылка на Google Meet встречу была обнаружена. Подключаюсь к конференции... 🔃\nЕсли хотите отменить подключение, выполните команду /cancel.")
-        
-        asyncio.create_task(self.background_connection_to_bot(update, context, meet_link))
+        free_bot = self.bots_manager.get_free_bot()
 
-        return move_next(context, ConversationState.google_meet_waiting_for_connection, ConversationState.waiting)
+        if free_bot is None:
+            await chat.send_message_to_query("⏮️ Не могу подключиться к конференции, так как все Google Meet боты заняты. Повторите попытку позже.")
+            return chat.move_back(context)
 
-    async def print_bot_end_connection_message(self, update: Update):
-        await update.message.reply_text("Бот подключился к конференции 👋")
+        is_call_accept = free_bot.connect_to_meet(meet_link, max_page_loading_time=60, max_accept_call_time=60)
 
-    async def waiting_for_connection_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-        await update.message.reply_text("🔃 Бот ожидает подключение к встрече... Если хотите отменить обработку встречи, выполните команду /cancel.")
+        if not is_call_accept:
+            await chat.send_message_to_query("⏮️ Истекло время ожидания подключения к конференции (60 секунд).")
+            free_bot.disconnect()
+            return chat.move_back(context)
+
+        member_names = free_bot.get_memeber_names(open_members_menu_time=60)[1:]
+        context["user_data"]["preloaded_names"] = member_names
+
+        await chat.send_message_to_query("✅ Обработка информации встречи завершена. Когда будете готовы, отравьте аудиозапись беседы со встречи следующим сообщением.\nЕсли же вы хотите завершить обработку встречи, выполните команду /cancel.")
+        await chat.send_message_to_query("Для дебага: участники встречи:\n" + "\n".join([f"{i+1}. {name}" for i, name in enumerate(member_names)]))
+
+        free_bot.disconnect()
+
+        return chat.move_next(context, "google_meet_waiting_for_audio", "entry_point")
+
+    async def handle_audio(self, message: dict, context: dict, chat: ChatInterface) -> str:
+        return await chat.move_next_and_send_message_to_event_loop("message_transcribe_audio_with_preloaded_names_command", "entry_point", message, context, chat)
+
+    async def conversation_not_ended_message(self, message: dict, context: dict, chat: ChatInterface) -> str:
+        await chat.send_message_to_query("⏮️ Пожалуйста, отправьте аудиозапись со встречи 🔖. Если хотите отменить обработку встречи, выполните команду /cancel.")
+        return chat.stay_on_state(context)
+
+    async def cancel(self, message: dict, context: dict, chat: ChatInterface) -> str:
+        await chat.send_message_to_query("🔖 Обработка встречи отменена.")
+        return chat.move_back(context)
+
+    # async def print_bot_end_connection_message(self, update: Update):
+    #     await update.message.reply_text("Бот подключился к конференции 👋")
+
+    # async def waiting_for_connection_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    #     await update.message.reply_text("🔃 Бот ожидает подключение к встрече... Если хотите отменить обработку встречи, выполните команду /cancel.")
     
-    async def waiting_for_meet_handling_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-        await update.message.reply_text("📅 Бот находится на конференции и анализирует её. Если хотите отменить обработку встречи, выполните команду /cancel.")
+    # async def waiting_for_meet_handling_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    #     await update.message.reply_text("📅 Бот находится на конференции и анализирует её. Если хотите отменить обработку встречи, выполните команду /cancel.")
 
-    async def conversation_not_ended_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-        await update.message.reply_text("⏮️ Пожалуйста, отправьте аудиозапись со встречи 🔖. Если хотите отменить обработку встречи, выполните команду /cancel.")
-
-    async def connection_complete_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        return move_next(context, ConversationState.google_meet_waiting_untill_handling, ConversationState.waiting)
+    # async def connection_complete_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    #     return move_next(context, ConversationState.google_meet_waiting_untill_handling, ConversationState.waiting)
     
-    async def meet_handling_complete_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        return move_next(context, ConversationState.message_speaker_correction_state_with_preloaded_names, ConversationState.waiting)
+    # async def meet_handling_complete_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    #     return move_next(context, ConversationState.message_speaker_correction_state_with_preloaded_names, ConversationState.waiting)
 
-    async def cancel(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-        if update.message.from_user.id in self.active_user_handlers:
-            user_handler: GoogleMeetConnectCommand.UserHandleDiscription = self.active_user_handlers[update.message.from_user.id]
-            user_handler.bot.disconnect()
-            for task in user_handler.connection_tasks:
-                task.cancel()
-            del self.active_user_handlers[update.message.from_user.id]
-        await update.message.reply_text("🔖 Обработка встречи отменена.")
-        return move_back(context)
-    
     def get_conversation_states(self) -> Dict[str, MessageHandler]: 
         return {
             "entry_point": [
                 MessageHandler(self.filter_factory.create_filter("regex", dict(pattern=r"(?:https:\/\/)?meet\.google\.com\/[a-z]{3}-[a-z]{4}-[a-z]{3}")), self.handle_command)
             ],
-            "google_meet_waiting_for_connection": [
-                MessageHandler(self.filter_factory.create_filter("command", dict(command="waiting_for_connection_continue")), self.connection_complete_callback),
-                MessageHandler(~self.filter_factory.create_filter("command", dict(command="cancel")), self.waiting_for_connection_message),
-                MessageHandler(self.filter_factory.create_filter("command", dict(command="cancel")), self.cancel)
+            "google_meet_waiting_for_audio": [
+                MessageHandler(self.filter_factory.create_filter("audio"), self.handle_audio),
+                MessageHandler(self.filter_factory.create_filter("voice"), self.handle_audio),
+                MessageHandler(self.filter_factory.create_filter("video"), self.handle_audio),
+                MessageHandler(self.filter_factory.create_filter("document.all"), self.handle_audio),
+                MessageHandler(self.filter_factory.create_filter("command", dict(command="cancel")), self.cancel),
+                MessageHandler(self.filter_factory.create_filter("all"), self.conversation_not_ended_message),
             ],
-            "google_meet_waiting_untill_handling": [
-                MessageHandler(self.filter_factory.create_filter("command", dict(command="waiting_untill_handling_continue")), self.meet_handling_complete_callback),
-                MessageHandler(~self.filter_factory.create_filter("command", dict(command="cancel")), self.waiting_for_meet_handling_message),
-                MessageHandler(self.filter_factory.create_filter("command", dict(command="cancel")), self.cancel)
-            ]
         }

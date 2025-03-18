@@ -42,6 +42,7 @@ class TranscribeAudioCommand(CommandInterface):
         self.transcricribe_request_log_dir = transcricribe_request_log_dir
         self.bitrix_manager = bitrix_manager
         self.speaker_correction_state = speaker_correction_state
+        self.command_state = "entry_point"
 
     async def save_log(self, request_log_path: str, request_log_dir: str, json_log: dict, chat: ChatInterface, reply_transription: bool = True):
         with open(request_log_path, "w", encoding="utf-8") as file:
@@ -145,6 +146,7 @@ class TranscribeAudioCommand(CommandInterface):
         await chat.send_file_to_query(doc_path)
         logging.info(f"Transcription request complete: {request_id}")
 
+        await self.print_end_message(message, context, chat)
 
     async def correct_speakers(self, message: dict, context: dict, chat: ChatInterface) -> str:
         assignees: List[Assignee] = context["user_data"]["assignees"]
@@ -208,6 +210,10 @@ class TranscribeAudioCommand(CommandInterface):
         await self.format_message(message, context, chat)
         return chat.move_next(context, self.speaker_correction_state, "entry_point")
 
+    async def print_end_message(self, message: dict, context: dict, chat: ChatInterface):
+        await chat.send_message_to_query("Обработка аудиозаписи завершена 🚀")
+
+
     async def continue_command(self, message: dict, context: dict, chat: ChatInterface) -> str:
         assignees = context["user_data"]["assignees"]
         speaker_to_user = context["user_data"]["speaker_to_user"]
@@ -232,7 +238,7 @@ class TranscribeAudioCommand(CommandInterface):
 
     def get_conversation_states(self) -> Dict[str, MessageHandler]:
         return {
-            "entry_point": [
+            self.command_state: [
                 MessageHandler(self.filter_factory.create_filter("audio"), self.handle_command),
                 MessageHandler(self.filter_factory.create_filter("voice"), self.handle_command),
                 MessageHandler(self.filter_factory.create_filter("video"), self.handle_command),
@@ -241,7 +247,7 @@ class TranscribeAudioCommand(CommandInterface):
             self.speaker_correction_state: [
                 MessageHandler(TranscribeAudioCommand.SpeakerCorrectionFilter(r"^\d+.\s*\S+\s+\S+\s*(?:\[сотрудник\])?\s*$"), self.correct_speakers),
                 MessageHandler(self.filter_factory.create_filter("command", dict(command="continue")), self.continue_command),
-                MessageHandler(~self.filter_factory.create_filter("regex", dict(pattern=r"^/cancel(?:@\w+)?\b")), self.wrong_correction_format_message),
-                MessageHandler(self.filter_factory.create_filter("command", dict(command="cancel")), self.cancel_command)
+                MessageHandler(self.filter_factory.create_filter("command", dict(command="cancel")), self.cancel_command),
+                MessageHandler(self.filter_factory.create_filter("all"), self.wrong_correction_format_message)
             ]
         }

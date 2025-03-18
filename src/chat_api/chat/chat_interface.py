@@ -1,5 +1,6 @@
 from typing import Any
 from abc import ABC, abstractmethod
+import asyncio
 
 class ChatInterface(ABC):
     @abstractmethod
@@ -29,7 +30,7 @@ class ChatInterface(ABC):
         pass
 
     async def move_next_and_send_message_to_event_loop(self, move_to: str, prev_state: str, message: dict, context: dict, chat: "ChatInterface"):
-        self.send_message_to_event_loop(message, context, chat)
+        asyncio.create_task(self.send_message_to_event_loop(message, context, chat))
         new_state = self.move_next(context, move_to, prev_state)
         return new_state
     
@@ -39,10 +40,10 @@ class ChatInterface(ABC):
         return new_state
 
     def __init_states(self, context: dict):
-        if "state_stack" not in context["user_data"]:
-            context["user_data"]["state_stack"] = []
+        if "state_stack" not in context["user_data"] or len(context["user_data"]["state_stack"]) == 0:
+            context["user_data"]["state_stack"] = [self.get_entry_point_state()]
         if "state" not in context["user_data"]:
-            context["user_data"]["state"] = []
+            context["user_data"]["state"] = self.get_entry_point_state()
 
 
     def move_next(self, context: dict, move_to: str, prev_state: str):
@@ -59,3 +60,8 @@ class ChatInterface(ABC):
         prev_state = context["user_data"]["state_stack"].pop()
         context["user_data"]['state'] = prev_state
         return prev_state
+    
+    def stay_on_state(self, context: dict):
+        self.__init_states(context)
+        return context["user_data"]["state"]
+        

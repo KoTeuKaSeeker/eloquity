@@ -10,3 +10,4 @@ class MessageTranscribeAudioWithPreloadedNamesCommand(TranscribeAudioWithPreload
     def __init__(self, filter_factory: MessageFilterFactoryInterface, dropbox: DropBoxManager, task_extractor: TaskExtractor, bitrix_manager: BitrixManager, transcricribe_request_log_dir: str):
         super().__init__(filter_factory, task_extractor, bitrix_manager, transcricribe_request_log_dir, MessageAudioLoader(dropbox))
         self.speaker_correction_state = "message_speaker_correction_state_with_preloaded_names"
+        self.command_state = "message_transcribe_audio_with_preloaded_names_command"

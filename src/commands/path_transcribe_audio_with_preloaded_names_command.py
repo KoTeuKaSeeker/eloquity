@@ -12,3 +12,4 @@ class PathTranscribeAudioWithPreloadedNamesCommand(TranscribeAudioWithPreloadedN
         self.path_audio_loader = PathAudioLoader()
         super().__init__(filter_factory, task_extractor, bitrix_manager, transcricribe_request_log_dir, self.path_audio_loader)
         self.speaker_correction_state = "path_speaker_correction_state_with_preloaded_names"
+        self.command_state = "path_transcribe_audio_with_preloaded_names_command_state"

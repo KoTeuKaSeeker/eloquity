@@ -50,7 +50,7 @@ class TelegramChatApi(ChatApiInterface):
             context["user_id"] = update.effective_user.id
             context["user_data"] = t_context.user_data
 
-            chat = TelegramChat(update, context)
+            chat = TelegramChat(update, t_context)
 
             state = await message_handler.get_message_handler()(message, context, chat)
             return state
@@ -79,7 +79,7 @@ class TelegramChatApi(ChatApiInterface):
         conversation_handler = ConversationHandler(
             entry_points=entry_point_telegram_handlers,
             states=clear_telegram_handler_states,
-            fallbacks=[]
+            fallbacks=[],
         )
 
         self.app.add_handler(conversation_handler)
