@@ -70,12 +70,17 @@ class GoogleMeetConnectCommand(CommandInterface):
         member_names = free_bot.get_memeber_names(open_members_menu_time=60)[1:]
         context["user_data"]["preloaded_names"] = member_names
 
+        await self.print_okay_message(member_names, chat)
+        await self.after_handling_meet(free_bot, message, context, chat)
+
+        return chat.move_next(context, "google_meet_waiting_for_audio", "entry_point")
+
+    async def print_okay_message(self, member_names: List[str], chat: ChatInterface):
         await chat.send_message_to_query("✅ Обработка информации встречи завершена. Когда будете готовы, отравьте аудиозапись беседы со встречи следующим сообщением.\nЕсли же вы хотите завершить обработку встречи, выполните команду /cancel.")
         await chat.send_message_to_query("Для дебага: участники встречи:\n" + "\n".join([f"{i+1}. {name}" for i, name in enumerate(member_names)]))
 
+    async def after_handling_meet(self, free_bot, message: dict, context: dict, chat: ChatInterface):
         free_bot.disconnect()
-
-        return chat.move_next(context, "google_meet_waiting_for_audio", "entry_point")
 
     async def handle_audio(self, message: dict, context: dict, chat: ChatInterface) -> str:
         return await chat.move_next_and_send_message_to_event_loop("message_transcribe_audio_with_preloaded_names_command", "entry_point", message, context, chat)
@@ -103,7 +108,7 @@ class GoogleMeetConnectCommand(CommandInterface):
     # async def meet_handling_complete_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
     #     return move_next(context, ConversationState.message_speaker_correction_state_with_preloaded_names, ConversationState.waiting)
 
-    def get_conversation_states(self) -> Dict[str, MessageHandler]: 
+    def get_conversation_states(self) -> Dict[str, List[MessageHandler]]: 
         return {
             "entry_point": [
                 MessageHandler(self.filter_factory.create_filter("regex", dict(pattern=r"(?:https:\/\/)?meet\.google\.com\/[a-z]{3}-[a-z]{4}-[a-z]{3}")), self.handle_command)

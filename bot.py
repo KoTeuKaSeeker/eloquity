@@ -36,6 +36,7 @@ from src.chat_api.chat_api.telegram_chat_api import TelegramChatApi
 from src.chat_api.message_filters.interfaces.message_filter_factory_interface import MessageFilterFactoryInterface
 from src.chat_api.message_filters.factories.base_message_filter_factory import BaseMessageFilterFactory
 from src.commands.google_meet_connect_commands.google_meet_connect_command import GoogleMeetConnectCommand
+from src.commands.google_meet_connect_commands.google_meet_recording_audio_command import GoogleMeetRecordingAudioCommand
 
 #TODO #TODO #TODO #TODO #TODO #TODO #TODO #TODO #TODO #TODO
 # Транскрибатор падает, если получает на вход запись, в котором не сказанно ни одного слова. 
@@ -109,9 +110,8 @@ def load_commands(
         filter_factory: MessageFilterFactoryInterface) -> List[CommandInterface]:
     commands = []
     commands.append(StartCommand(filter_factory))
-    # commands.append(RemindCommand(filter_factory))
-    # commands.append(GoogleMeetRecordingAudioCommand(bots_manager, dbx, task_extractor, bitrix_manager, TRANSCRIBE_REQUEST_LOG_DIR))
-    commands.append(GoogleMeetConnectCommand(bots_manager, filter_factory))
+    # commands.append(GoogleMeetConnectCommand(bots_manager, filter_factory))
+    commands.append(GoogleMeetRecordingAudioCommand(bots_manager, filter_factory))
     commands.append(MessageTranscribeAudioCommand(filter_factory, dbx, task_extractor, bitrix_manager, TRANSCRIBE_REQUEST_LOG_DIR))
     commands.append(DropboxTranscribeAudioCommand(filter_factory, dbx, task_extractor, bitrix_manager, TRANSCRIBE_REQUEST_LOG_DIR))
     commands.append(MessageTranscribeAudioWithPreloadedNamesCommand(filter_factory, dbx, task_extractor, bitrix_manager, TRANSCRIBE_REQUEST_LOG_DIR))
