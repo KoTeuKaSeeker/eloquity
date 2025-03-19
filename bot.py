@@ -133,7 +133,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
 
     chat_api = providers.Singleton(
         OpenwebuiChatApi,
-        openwebui_coordinator_url=providers.Object(f"{OPEN_WEB_UI_HOST}:{OPEN_WEB_UI_PORT}"),
+        openwebui_coordinator_url=providers.Object(f"{OPEN_WEB_UI_HOST}:{OPEN_WEB_UI_PORT}/"),
         temp_path=providers.Object(AUDIO_DIR)
     )
 
