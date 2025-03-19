@@ -120,7 +120,7 @@ async def get_task(task_id: str):
         task_id=task_id,
         user_id=task.user_id,
         initial_message=task.initial_message,
-        initial_files=task.initial_files,
+        initial_file=task.initial_file,
         status=task.status,
         output_messages=task.output_messages,
         output_files=task.output_files
