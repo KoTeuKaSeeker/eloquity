@@ -28,7 +28,7 @@ class Task:
 tasks_db = {}
 SERVER_HOST = "0.0.0.0"
 SERVER_PORT = 8001
-SERVER_LOCAL_HOST = "192.168.0.15"
+SERVER_LOCAL_HOST = "localhost"
 
 # Pydantic Models for Request and Response
 class CreateTaskRequest(BaseModel):
