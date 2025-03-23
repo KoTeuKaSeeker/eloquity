@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import List
 from src.chat_api.chat.chat_interface import ChatInterface
 
 class AudioLoaderInterface(ABC):

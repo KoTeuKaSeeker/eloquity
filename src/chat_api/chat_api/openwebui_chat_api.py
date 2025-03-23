@@ -12,6 +12,7 @@ import shutil
 import os
 import uuid
 import datetime
+import pytz
 
 
 class OpenwebuiChatApi():
@@ -35,13 +36,13 @@ class OpenwebuiChatApi():
 
     def get_message_dict(self, task: dict):
         message = {}
-        if len(task["initial_files"]) > 0:
-            file_url = task["initial_files"][0]
+        if len(task["initial_file"]) > 0:
+            file_url = task["initial_file"]
             response = requests.get(file_url)
 
             file_name = str(uuid.uuid4())
             file_extension = os.path.splitext(file_url)[1]
-            file_path = os.path.join(self.temp_path, file_name, file_extension)
+            file_path = os.path.join(self.temp_path, file_name + file_extension)
             with open(file_path, 'wb') as f:
                 f.write(response.content)
             
@@ -49,8 +50,8 @@ class OpenwebuiChatApi():
 
                 
         if len(task["initial_message"]) > 0: message["text"] = task["initial_message"]
-        message["forward_origin_date"] = datetime.datetime.now()
-        message["date"] = datetime.datetime.now()
+        message["forward_origin_date"] = datetime.datetime.now(pytz.UTC)
+        message["date"] = datetime.datetime.now(pytz.UTC)
 
         return message
     
@@ -67,10 +68,17 @@ class OpenwebuiChatApi():
         return context
             
     def filter_handlers(self, handlers: List[MessageHandler], message: dict):
+        filtered_handler = None
         for handler in handlers:
             message_filter = handler.get_message_filter()
             if message_filter.filter(message):
-                return handler
+                filtered_handler = handler
+                break
+        return filtered_handler
+
+    def update_task_status(self, task_id: str, status: str):
+        status_data = {"status": status}
+        response = requests.post(f"{self.openwebui_coordinator_url}/task/{task_id}/update_status", params=status_data)
 
     async def handle_user_task(self, task: dict):
         user_id = task["user_id"]
@@ -87,17 +95,21 @@ class OpenwebuiChatApi():
         handlers = self.handler_states[active_state]
         
         filtered_handler = self.filter_handlers(handlers, message)
-        new_state = filtered_handler.get_message_handler()(message, context, chat)
+        new_state = active_state
+        if filtered_handler is not None:
+            new_state = await filtered_handler.get_message_handler()(message, context, chat)
 
         self.user_active_states[user_id] = new_state
         self.user_active_task[user_id] = None
+        self.update_task_status(task["task_id"], "Done")
+        
 
     async def polling_loop(self, poll_interval: int = 3):
         while True:
-            response = requests.get(self.openwebui_coordinator_url + "tasks/0")
+            response = requests.get(self.openwebui_coordinator_url + "tasks")
             data = response.json()
 
-            pending_tasks = [task for task in data["tasks"] if task["status"] == "pending"]
+            pending_tasks = [task for task in data["tasks"] if task["status"] == "Pending"]
             for task in pending_tasks:
                 user_id = task["user_id"]
                 if user_id not in self.user_active_task:

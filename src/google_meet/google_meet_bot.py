@@ -154,6 +154,10 @@ class GoogleMeetBot():
 
         camera_button = self.driver.find_element(By.XPATH, camera_xpath)
         camera_turn_on = camera_button.get_attribute("data-is-muted") == "false"
+
+        if camera_turn_on == turn_on:
+            return
+
         if (not camera_turn_on and turn_on) or (camera_turn_on and not turn_on):
             camera_button.click()
         

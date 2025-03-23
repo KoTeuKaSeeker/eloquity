@@ -42,7 +42,7 @@ class GoogleMeetConnectCommand(CommandInterface):
         self.filter_factory = filter_factory
 
     async def handle_command(self, message: dict, context: dict, chat: ChatInterface) -> str:
-        meet_link = message["text"]
+        meet_link = re.findall(r"(?:https:\/\/)?meet\.google\.com\/[a-z]{3}-[a-z]{4}-[a-z]{3}", message["text"])[0]
         message_date = message["forward_origin_date"] if "forward_origin_date" in message else message["date"]
         message_waiting_time = datetime.datetime.now(pytz.UTC) - message_date
 

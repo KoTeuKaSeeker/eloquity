@@ -14,7 +14,7 @@ class OpenWebUIChat(ChatInterface):
 
     async def send_message_to_query(self, message: str):
         task_id = self.task["task_id"]
-        requests.post(self.openwebui_coordinator_url + f"task/{task_id}/add_message", data={"message": message})
+        requests.post(self.openwebui_coordinator_url + f"task/{task_id}/add_message", params={"message": message})
 
     async def send_file_to_query(self, file_path: str):
         task_id = self.task["task_id"]
