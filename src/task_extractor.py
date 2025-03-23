@@ -1,9 +1,9 @@
 import os
 import uuid
 from typing import List
-from src.eloquity_ai import EloquityAI
+from src.AI.eloquity_ai import EloquityAI
 from src.transcribers.transcriber_interface import TranscriberInterface
-from src.identified_names_handler_interface import IdentifiedNamesHandlerInterface
+from src.AI.identified_names_handler_interface import IdentifiedNamesHandlerInterface
 
 
 class TaskExtractor():
@@ -38,6 +38,13 @@ class TaskExtractor():
 
         return doc
     
+    def transcirbe_audio_and_identify_names(self, audio_path: str, preloaded_names: List[str] = [], json_log: dict = None):
+        conversation = self.transcribe_audio(audio_path, json_log)
+        name_dict, meet_nicknames, speaker_to_user = self.eloquity.identify_assignee_names_with_bitrix_correction(conversation, preloaded_names, json_log)
+
+        return conversation, name_dict, meet_nicknames, speaker_to_user
+    
+
     def save_doc(self, doc, save_path: str = None) -> str:
         doc_path = os.path.join(self.temp_dir, str(uuid.uuid4()) + ".docx") if save_path is None else save_path
         doc.save(doc_path)

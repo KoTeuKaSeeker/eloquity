@@ -3,6 +3,7 @@ python-telegram-bot
 pydub
 huggingface-hub
 python-dotenv
+dependency-injector
 moviepy
 dropbox
 whisperx
@@ -15,3 +16,7 @@ flask
 platformdirs
 pymilvus
 sentence_transformers
+tzlocal
+thefuzz
+open-webui
+faiss

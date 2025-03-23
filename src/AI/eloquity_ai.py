@@ -10,7 +10,11 @@ import copy
 from src.exeptions.ai_exceptions.ai_cant_handle_request_exception import AICantHandleRequestException
 from src.bitrix.bitrix_manager import BitrixManager
 from src.bitrix.bitrix_user import BitrixUser
-from src.identified_names_handler_interface import IdentifiedNamesHandlerInterface
+from src.bitrix.bitrix_task import BitrixTask
+from src.AI.identified_names_handler_interface import IdentifiedNamesHandlerInterface
+from tzlocal import get_localzone
+from src.AI.database.user_database_interface import UserDatabaseInterface
+from thefuzz import fuzz
 
 
 class Deadline():
@@ -30,7 +34,8 @@ class Deadline():
 
 
 class Task:
-    def __init__(self, content: str, deadline: Deadline):
+    def __init__(self, title: str, content: str, deadline: Deadline):
+        self.title = title
         self.content = content
         self.deadline = deadline
     
@@ -45,8 +50,9 @@ class Task:
 
 
 class Assignee:
-    def __init__(self, name: str, tasks: List[Task]):
+    def __init__(self, name: str, original_speaker_name: str, tasks: List[Task]):
         self.name = name
+        self.original_speaker_name = original_speaker_name
         self.tasks = tasks
     
     def __str__(self):
@@ -64,7 +70,7 @@ class Assignee:
 
 
 class EloquityAI:
-    def __init__(self, api_key: str, bitrix_manager: BitrixManager, model_name: str = 'gpt-4o'):
+    def __init__(self, api_key: str, bitrix_manager: BitrixManager, users_database: UserDatabaseInterface, model_name: str = 'gpt-4o'):
         self.api_url = "https://gptunnel.ru/v1/chat/completions"
         self.api_key = api_key
         self.name_identification_prefix = self._load_prefix("prefixes/name_identification.txt")
@@ -74,9 +80,9 @@ class EloquityAI:
         self.bitrix_finder_prompt = self._load_prefix("prefixes/bitrix_finder_prompt.txt")
         self.model_name = model_name
         self.bitrix_manager = bitrix_manager
+        self.users_database = users_database
         self.bitrix_users = self.bitrix_manager.find_users(count_return_entries=-1)
-        self.full_names_to_bitrix_users = self.get_bitrix_users_dict(self.bitrix_users)
-        self.employees_prompt = self.get_employees_prompt()
+        self.users_database.add_users(self.bitrix_users)
     
     def get_bitrix_users_dict(self, bitrix_users: List[BitrixUser]):
         full_names_to_bitrix_users = {}
@@ -86,37 +92,7 @@ class EloquityAI:
         return full_names_to_bitrix_users
 
     def get_employees_prompt(self):
-        # employees_prompt = "\n\n".join([str(user) for user in self.bitrix_users])
-
-        employees_prompt = """
-        ФИО: Гарибашвили Александра
-        Почта: a.garibashvili@zebrains.team/
-        Должность: Финансовый аналитик
-
-        ФИО: Белов Александр Юрьевич
-        Почта: ay.belov@zebrains.team/
-        Должность: Менеджер по продажам
-
-        ФИО: Дорошенко Александр Сергеевич
-        Почта: a.doroshenko@zebrains.team/doralex85@gmail.com
-        Должность: Программист React
-
-        ФИО: Маркин Павел Юрьевич
-        Почта: p.markin@zebrains.team/
-        Должность: Программист
-
-        ФИО: Долгов Данил Петрович
-        Почта: d.dolgov@zebrains.team/emaillit8@gmail.com
-        Должность: ML инженер
-
-        ФИО: Долгов Александр Петрович
-        Почта: a.dolgov@zebrains.team/emailgax8@gmail.com
-        Должность: ML инженер
-
-        ФИО: Таяснех Мишель Файсалович
-        Почта: m.tayasnekh@zebrains.team/
-        Должность: Разработчик Bitrix 24
-        """
+        employees_prompt = "\n\n".join([str(user) for user in self.bitrix_users])
         return employees_prompt
 
     def _load_prefix(self, file_path: str) -> str:
@@ -212,27 +188,42 @@ class EloquityAI:
             assignee_dict = json.loads(fix_response)
 
         assignee_list: List[Assignee] = []
-        for assignee_name, tasks in assignee_dict.items():
+        for assignee_name, assagnee_data in assignee_dict.items():
+            original_speaker_name = assagnee_data["original_speaker_name"]
+            tasks = assagnee_data["tasks"]
             task_list: List[Task] = []
             for task_dict in tasks:
                 approx_description = "-"
                 try:
                     time = datetime.strptime(task_dict["time"], "%H:%M %d.%m.%Y")
+                    local_tz = get_localzone()
+                    time = time.replace(tzinfo=local_tz)
                 except:
                     time = None
                     approx_description = task_dict["time"]
                 
+                title = task_dict["title"]
                 deadline = Deadline(time, approx_description)
-                task = Task(task_dict["task"], deadline)
+                task = Task(title, task_dict["task"], deadline)
                 task_list.append(task)
             
-            assignee = Assignee(assignee_name, task_list)
+            assignee = Assignee(assignee_name, original_speaker_name, task_list)
             assignee_list.append(assignee)
         
         if json_log is not None:
             json_log["assignees"] = [assignee.__dict__() for assignee in assignee_list]
         
         return assignee_list
+
+    def add_assignee_to_bitrix(self, assignees: List[Assignee], speaker_to_user: dict):
+        for assignee in assignees:
+            user: BitrixUser = speaker_to_user[assignee.original_speaker_name]
+            
+            if user is not None:
+                bitrix_tasks = [BitrixTask(title=task.title, created_by_id=1, responsible_id=user.id, discription=task.content, *({} if task.deadline.time is None else dict(deadline=task.deadline.time.isoformat()))) for task in assignee.tasks]
+                for task in bitrix_tasks:
+                    self.bitrix_manager.create_task_on_bitrix(task)
+        
 
     def identify_assignee_for_participants(self, conversation_str: str, name_dict: dict, meet_nicknames: dict, json_log: dict = None):
         content = self.prepare_task_assigment_prompt(conversation_str, name_dict, meet_nicknames, json_log)
@@ -241,11 +232,10 @@ class EloquityAI:
         assignee_list = self.analyze_assignees_response(response, json_log)
         return assignee_list
 
-    def prepare_bitrix_finder_prompt(self, name_dict: dict, meet_nicknames: dict):
+    def prepare_bitrix_finder_prompt(self, assignees: List[Assignee]):
         conversation_members_lines = []
-        for i, (name, meet_nickname) in enumerate(zip(name_dict.values(), meet_nicknames.values())):
-            line = f"speaker_{i}: {name}"
-            line = line + f" ({meet_nickname})" if meet_nickname is not None else line
+        for i, assignee in enumerate(assignees):
+            line = f"{i}: {assignee.original_speaker_name}"
             conversation_members_lines.append(line)
         conversation_members_str = "\n".join(conversation_members_lines)
 
@@ -268,38 +258,39 @@ class EloquityAI:
         
         return speaker_to_user
 
-    def find_bitrix_full_name(self, name_dict: dict, meet_nicknames: dict):
-        bitrix_finder_prompt = self.prepare_bitrix_finder_prompt(name_dict, meet_nicknames)
-        response = self.get_model_response(bitrix_finder_prompt)
+    def find_bitrix_full_name(self, assignees: List[Assignee]):
+        speaker_to_user = {}
+        for assignee in assignees:
+            user = self.users_database.find_user(assignee.original_speaker_name, max_distance=0.7)
+            if user is not None:
+                assignee.original_speaker_name = f"{user.name} {user.second_name} {user.last_name}" + f" (изначально {assignee.name})"
+                assignee.name = f"{user.name} {user.second_name} {user.last_name}"
+            speaker_to_user[assignee.original_speaker_name] = user
 
-        speaker_to_user = self.analyze_bitrix_finder_prompt(response)
         return speaker_to_user
 
-    def modify_name_dict_with_users(self, name_dict: dict, speaker_to_user: dict):
-        for speaker, user in speaker_to_user.items():
-            if user is not None:
-                name_dict[speaker] = f"{user.last_name} {user.name} {user.second_name}"
+    def modify_assignee_with_users(self, assignees: List[Assignee], speaker_to_user: dict):
+        for assignee in assignees:
+            if speaker_to_user[assignee.original_speaker_name] is not None:
+                user = speaker_to_user[assignee.original_speaker_name]
+                assignee.name = f"{user.name} {user.second_name} {user.last_name}"
         
-        return name_dict
-    
-    def identify_assignee_names_with_bitrix_correction(self, conversation_str: str, preloaded_names: List[str] = [], json_log: dict = None):
-        name_dict, meet_nicknames = self.identify_assignee_names(conversation_str, json_log, preloaded_names=preloaded_names)
-        speaker_to_user = self.find_bitrix_full_name(name_dict, meet_nicknames)
-        
-        self.modify_name_dict_with_users(name_dict, speaker_to_user)
-        return name_dict, meet_nicknames, speaker_to_user
+        return assignees
 
     def generate_assignees(self, conversation_str: str, json_log: dict = None, preloaded_names: List[str] = [], identified_names_handler: IdentifiedNamesHandlerInterface = None) -> List[Assignee]: 
-        name_dict, meet_nicknames, speaker_to_user = self.identify_assignee_names_with_bitrix_correction(conversation_str, preloaded_names, json_log)
-
-        if identified_names_handler: identified_names_handler.handle_identified_names(name_dict, meet_nicknames, speaker_to_user)
-
+        name_dict, meet_nicknames = self.identify_assignee_names(conversation_str, json_log, preloaded_names=preloaded_names)
         assignee_list = self.identify_assignee_for_participants(conversation_str, name_dict, meet_nicknames, json_log)
 
         return assignee_list
     
-    def generate_docx(self, conversation_str: str, template_path="docx_templates/default.docx", preloaded_names: List[str] = [], json_log: dict = None, identified_names_handler: IdentifiedNamesHandlerInterface = None):
-        assignees = self.generate_assignees(conversation_str, json_log, preloaded_names=preloaded_names, identified_names_handler=identified_names_handler)
+    def correct_assignees_with_bitirx(self, assignee_list: List[Assignee]) -> dict:
+        speaker_to_user = self.find_bitrix_full_name(assignee_list)
+        self.modify_assignee_with_users(assignee_list, speaker_to_user)
+        return speaker_to_user
+    
+    def generate_docx(self, conversation_str: str, template_path="docx_templates/default.docx", preloaded_names: List[str] = [], json_log: dict = None, identified_names_handler: IdentifiedNamesHandlerInterface = None, assignees: List[Assignee] = []):
+        if len(assignees) == 0:
+            assignees = self.generate_assignees(conversation_str, json_log, preloaded_names=preloaded_names, identified_names_handler=identified_names_handler)
         doc = self.get_docx_from_assignees(assignees, template_path)
         return doc
     

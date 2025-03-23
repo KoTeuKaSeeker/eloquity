@@ -1,0 +1,5 @@
+setup.py
+command_interaction_module.egg-info/PKG-INFO
+command_interaction_module.egg-info/SOURCES.txt
+command_interaction_module.egg-info/dependency_links.txt
+command_interaction_module.egg-info/top_level.txt

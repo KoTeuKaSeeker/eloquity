@@ -1,5 +1,5 @@
 import os
-from telegram import Update
+from telegram import Message
 from pydub import AudioSegment
 import dropbox
 from src.exeptions.unknown_error_exception import UnknownErrorException
@@ -15,13 +15,13 @@ class RecognizedAudioFormatHandler(AudioFormatHandler):
         super().__init__(audio_dir, audio_extention_to_save)
         self.audio_extractor = AudioExtractor()
 
-    async def load_audio(self, update: Update, context) -> str:
-        if update.message.audio or update.message.voice:
-            audio = update.message.audio or update.message.voice
+    async def load_audio(self, message: Message) -> str:
+        if message.audio or message.voice:
+            audio = message.audio or message.voice
             file_id = audio.file_id
 
             try:
-                file = await context.bot.get_file(file_id)
+                file = await message.get_bot().get_file(file_id)
             except BadRequest as e:
                 if e.message == "File is too big":
                     raise TooBigFileException()

@@ -1,34 +1,49 @@
-from typing import List
+from typing import List, Dict
 from src.commands.transcribe_audio_command import TranscribeAudioCommand
 from src.commands.audio_loaders.message_audio_loader import MessageAudioLoader
 from src.task_extractor import TaskExtractor
 from src.drop_box_manager import DropBoxManager
 from src.commands.audio_loaders.audio_loader_interface import AudioLoaderInterface
-from telegram.ext._handlers.basehandler import BaseHandler
-from telegram.ext import MessageHandler, filters, ConversationHandler
+from src.bitrix.bitrix_manager import BitrixManager
+from src.chat_api.chat.chat_interface import ChatInterface
+from src.chat_api.message_filters.interfaces.message_filter_factory_interface import MessageFilterFactoryInterface
+from src.chat_api.message_handler import MessageHandler
+from src.format_corrector import FormatCorrector
 
 class TranscribeAudioWithPreloadedNamesCommand(TranscribeAudioCommand):
     preloaded_names: List[str]
 
-    def __init__(self, task_extractor: TaskExtractor, transcricribe_request_log_dir: str, audio_loader_interface: AudioLoaderInterface):
-        super().__init__(audio_loader_interface, task_extractor, transcricribe_request_log_dir)
-        self.preloaded_names = []
+    def __init__(self, 
+                 filter_factory: MessageFilterFactoryInterface, 
+                 task_extractor: TaskExtractor, 
+                 bitrix_manager: BitrixManager, 
+                 transcricribe_request_log_dir: str, 
+                 audio_loader_interface: AudioLoaderInterface,
+                 format_corrector: FormatCorrector):
+        super().__init__(
+            filter_factory, 
+            audio_loader_interface, 
+            task_extractor, 
+            transcricribe_request_log_dir, 
+            bitrix_manager, 
+            "speaker_correction_state_with_preloaded_names",
+            format_corrector 
+        )
+        self.command_state = "transcribe_audio_with_preloaded_names_command_state"
+    
+    async def print_end_message(self, message: dict, context: dict, chat: ChatInterface):
+        await chat.send_message_to_query("Обработка Google Meet встречи завершена 🚀")
 
-    async def handle_command(self, update, context):
-        await super().handle_command(update, context)
-        await update.message.reply_text("🚀 Обработка Google Meet беседы завершена.")
-        return ConversationHandler.END
+    async def wait_for_audio(self, message: dict, context: dict, chat: ChatInterface):
+        await chat.send_message_to_query("⏮️ Отправьте аудиозапись встречи. Если же вы хотите завершить обработку, выполните команду /cancel.")
 
-    def get_telegram_handlers(self) -> List[BaseHandler]:
-        return [
-            MessageHandler(filters.AUDIO, self.handle_command),
-            MessageHandler(filters.VOICE, self.handle_command),
-            MessageHandler(filters.VIDEO, self.handle_command),
-            MessageHandler(filters.Document.ALL, self.handle_command)
+    def get_conversation_states(self) -> Dict[str, MessageHandler]:
+        states = super().get_conversation_states()
+
+        states[self.command_state] += [
+            MessageHandler(self.filter_factory.create_filter("command", dict(command="continue")), self.handle_command),
+            MessageHandler(self.filter_factory.create_filter("command", dict(command="cancel")), self.cancel_command),
+            MessageHandler(self.filter_factory.create_filter("all"), self.wait_for_audio)
         ]
-    
-    def set_preloaded_names(self, preloaded_names: List[str]):
-        self.preloaded_names = preloaded_names
-    
-    def get_preloaded_names(self) -> List[str]:
-        return self.preloaded_names
+
+        return states

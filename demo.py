@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 from src.task_extractor import TaskExtractor
 from src.transcribers.deepgram_transcriber import DeepgramTranscriber
-from src.eloquity_ai import EloquityAI
+from AI.eloquity_ai import EloquityAI
 
 # Загрузка переменных окружения
 load_dotenv()

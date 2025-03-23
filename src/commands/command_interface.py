@@ -1,10 +1,11 @@
 from abc import ABC, abstractmethod
-from typing import List
-from telegram import Update
-from telegram.ext import ContextTypes
-from telegram.ext._handlers.basehandler import BaseHandler
+from typing import List, Dict
+from src.chat_api.message_handler import MessageHandler
+from src.chat_api.message_handler import MessageHandler
 
 class CommandInterface(ABC):
-    @abstractmethod
-    def get_telegram_handlers(self) -> List[BaseHandler]:
-        pass
+    def get_entry_points(self) -> List[MessageHandler]:
+        return []
+
+    def get_conversation_states(self) -> Dict[str, MessageHandler]:
+        return {}
