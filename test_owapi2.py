@@ -2,7 +2,7 @@ import requests
 
 # The URL of the FastAPI endpoint
 user_id = "234g23uy2g"  # The user_id to test with
-url = f"http://localhost:8001/tasks/{user_id}"
+url = f"http://localhost:8001/tasks"
 
 # Send the GET request to the endpoint
 response = requests.get(url)

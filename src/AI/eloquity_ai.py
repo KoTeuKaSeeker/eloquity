@@ -14,8 +14,6 @@ from src.bitrix.bitrix_task import BitrixTask
 from src.AI.identified_names_handler_interface import IdentifiedNamesHandlerInterface
 from tzlocal import get_localzone
 from src.AI.database.user_database_interface import UserDatabaseInterface
-from thefuzz import fuzz
-
 
 class Deadline():
     time: datetime

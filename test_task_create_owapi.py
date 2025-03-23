@@ -8,7 +8,7 @@ file_path = "data/test_audio_data/audio_1.wav"  # Replace with the actual file p
 with open(file_path, "rb") as file:
     response = requests.post(
         f"{BASE_URL}/task/create",
-        data={"user_id": "1234", "message": "Some test message..."},
+        data={"user_id": "0", "message": "Some test message..."},
         files={"file": (file.name, file, "application/octet-stream")}
     )
 

@@ -1,8 +1,9 @@
-from fastapi import APIRouter, HTTPException, File, UploadFile, Form
+from fastapi import APIRouter, HTTPException, File, UploadFile, Form, Query
 from pydantic import BaseModel
 from typing import List, Optional
 from uuid import uuid4
 from dataclasses import dataclass
+import socket
 import shutil
 import os
 
@@ -25,6 +26,9 @@ class Task:
 
 # Create a dictionary to store tasks
 tasks_db = {}
+SERVER_HOST = "0.0.0.0"
+SERVER_PORT = 8001
+SERVER_LOCAL_HOST = "192.168.0.15"
 
 # Pydantic Models for Request and Response
 class CreateTaskRequest(BaseModel):
@@ -46,8 +50,10 @@ router = APIRouter()
 
 # 1. POST /task/create
 @router.post("/task/create")
-async def create_task(user_id: str = Form(...), message: str = Form(...), file: UploadFile = File(...)):
-    file_url = upload_file(file)
+async def create_task(user_id: str = Form(...), message: str = Form(...), file: Optional[UploadFile] = File(None)):
+    file_url = ""
+    if file is not None:
+        file_url = upload_file(file)
     
     task_id = str(uuid4())  # Generate a unique task ID
     task = Task(
@@ -74,20 +80,60 @@ async def create_task(user_id: str = Form(...), message: str = Form(...), file: 
         output_files=task.output_files
     )
 
+@router.post("/task/modify")
+async def create_task(task_id: str = Form(...), user_id: str = Form(...), message: str = Form(...), file: Optional[UploadFile] = File(None)):
+    file_url = ""
+    if file is not None:
+        file_url = upload_file(file)
+    
+    # task_id = str(uuid4())  # Generate a unique task ID
+    # task = Task(
+    #     task_id=task_id,
+    #     user_id=user_id,
+    #     initial_message=message,
+    #     initial_file=file_url,
+    #     status="Pending",  # Default status
+    # )
+    task: Task = tasks_db[task_id]
+
+    task.user_id = user_id
+    task.initial_message = message
+    task.initial_file = file_url
+
+    
+    # print("All task messages:")
+    # for task in tasks_db.values():
+    #     print(f"    {task.initial_message}")
+
+    return TaskResponse(
+        task_id=task_id,
+        user_id=task.user_id,
+        initial_message=task.initial_message,
+        initial_file=task.initial_file,
+        status=task.status,
+        output_messages=task.output_messages,
+        output_files=task.output_files
+    )
+
+
 # 2. GET /tasks/{user_id}
-@router.get("/tasks/{user_id}", response_model=dict)
-async def get_tasks(user_id: str):
-    user_tasks = [task for task in tasks_db.values() if task.user_id == user_id]
+@router.get("/tasks", response_model=dict)
+async def get_tasks(user_id: Optional[str] = Query(None)):
+    
+    tasks = tasks_db.values()
+    if user_id is not None:
+        tasks = [task for task in tasks_db.values() if task.user_id == user_id]
 
-    print("All task messages:")
-    for task in tasks_db.values():
-        print(f"    {task.initial_message}")
+    # print("All task messages:")
+    # for task in tasks_db.values():
+    #     print(f"    {task.initial_message}")
 
-    print("\nUser task messages:")
-    for task in user_tasks:
-        print(f"    {task.initial_message}")
+    # print("\nUser task messages:")
+    # for task in user_tasks:
+    #     print(f"    {task.initial_message}")
 
-    task_dict_list = [task.__dict__ for task in user_tasks]
+
+    task_dict_list = [task.__dict__ for task in tasks]
 
     return {"status": 200, "tasks": task_dict_list}
 
@@ -114,6 +160,7 @@ async def update_status(task_id: str, status: str):
 @router.get("/task/{task_id}", response_model=TaskResponse)
 async def get_task(task_id: str):
     task = tasks_db.get(task_id)
+    print(f"TASK[{task_id}]:\n{task}")
     if not task:
         raise HTTPException(status_code=404, detail="Task not found.")
     return TaskResponse(
@@ -135,7 +182,7 @@ def upload_file(file: UploadFile):
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
     
-    url = f"http://localhost:8001/static/{file_name}"
+    url = f"http://{SERVER_LOCAL_HOST}:{SERVER_PORT}/static/{file_name}"
 
     return url
 
@@ -156,9 +203,10 @@ async def upload_file_in_task(task_id: str, file: UploadFile = File(...)):
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
     
-    download_url = f"http://localhost:8001/static/{file_name}"
+    download_url = f"http://{SERVER_LOCAL_HOST}:{SERVER_PORT}/static/{file_name}"
 
     task.output_files.append(download_url)
+    task.output_messages.append(download_url)
     return {"task_id": task_id, "file_url": download_url}
 
 

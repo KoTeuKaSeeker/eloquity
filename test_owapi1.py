@@ -5,7 +5,7 @@ url = "http://localhost:8001/task/create"
 
 # Data to send with the request
 data = {
-    "user_id": "1234",
+    "user_id": "0",
     "message": "A new era has come 2",
     "files": []
 }
