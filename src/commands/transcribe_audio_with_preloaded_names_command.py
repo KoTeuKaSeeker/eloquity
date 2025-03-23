@@ -8,12 +8,27 @@ from src.bitrix.bitrix_manager import BitrixManager
 from src.chat_api.chat.chat_interface import ChatInterface
 from src.chat_api.message_filters.interfaces.message_filter_factory_interface import MessageFilterFactoryInterface
 from src.chat_api.message_handler import MessageHandler
+from src.format_corrector import FormatCorrector
 
 class TranscribeAudioWithPreloadedNamesCommand(TranscribeAudioCommand):
     preloaded_names: List[str]
 
-    def __init__(self, filter_factory: MessageFilterFactoryInterface, task_extractor: TaskExtractor, bitrix_manager: BitrixManager, transcricribe_request_log_dir: str, audio_loader_interface: AudioLoaderInterface):
-        super().__init__(filter_factory, audio_loader_interface, task_extractor, transcricribe_request_log_dir, bitrix_manager, "speaker_correction_state_with_preloaded_names")
+    def __init__(self, 
+                 filter_factory: MessageFilterFactoryInterface, 
+                 task_extractor: TaskExtractor, 
+                 bitrix_manager: BitrixManager, 
+                 transcricribe_request_log_dir: str, 
+                 audio_loader_interface: AudioLoaderInterface,
+                 format_corrector: FormatCorrector):
+        super().__init__(
+            filter_factory, 
+            audio_loader_interface, 
+            task_extractor, 
+            transcricribe_request_log_dir, 
+            bitrix_manager, 
+            "speaker_correction_state_with_preloaded_names",
+            format_corrector 
+        )
         self.command_state = "transcribe_audio_with_preloaded_names_command_state"
     
     async def print_end_message(self, message: dict, context: dict, chat: ChatInterface):
@@ -26,6 +41,7 @@ class TranscribeAudioWithPreloadedNamesCommand(TranscribeAudioCommand):
         states = super().get_conversation_states()
 
         states[self.command_state] += [
+            MessageHandler(self.filter_factory.create_filter("command", dict(command="continue")), self.handle_command),
             MessageHandler(self.filter_factory.create_filter("command", dict(command="cancel")), self.cancel_command),
             MessageHandler(self.filter_factory.create_filter("all"), self.wait_for_audio)
         ]

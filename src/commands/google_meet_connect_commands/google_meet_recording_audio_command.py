@@ -78,14 +78,15 @@ class GoogleMeetRecordingAudioCommand(GoogleMeetConnectCommand):
         return chat.move_next(context, "google_meet_waiting_stop_recording", "entry_point")
 
     async def stop_recording(self, message: dict, context: dict, chat: ChatInterface) -> str:
-        await chat.send_message_to_query("⛔ Запись конференции была остановлена. Начинаю анализ записи...")
+        await chat.send_message_to_query("⛔ Запись конференции была остановлена. Для продолжения анализа записи выполните команду /continue")
         if context["user_id"] in self.user_id_to_bot:
             self.user_id_to_bot[context["user_id"]].is_recording = False
 
         while not os.path.exists(context["user_data"]["audio_path"]): await asyncio.sleep(1)
 
         message = {"audio_container": PathFileContainer(context["user_data"]["audio_path"])}
-        return await chat.move_next_and_send_message_to_event_loop("message_transcribe_audio_with_preloaded_names_command", "entry_point", message, context, chat)
+        # await chat.move_next_and_send_message_to_event_loop("message_transcribe_audio_with_preloaded_names_command", "entry_point", message, context, chat)
+        return chat.move_next(context, "message_transcribe_audio_with_preloaded_names_command", "entry_point")
 
     # async def print_bot_end_connection_message(self, update: Update):
     #     await update.message.reply_text("Бот подключился к конференции 👋")

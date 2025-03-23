@@ -36,6 +36,7 @@ from src.chat_api.message_filters.interfaces.message_filter_factory_interface im
 from src.chat_api.message_filters.factories.base_message_filter_factory import BaseMessageFilterFactory
 from src.commands.google_meet_connect_commands.google_meet_connect_command import GoogleMeetConnectCommand
 from src.commands.google_meet_connect_commands.google_meet_recording_audio_command import GoogleMeetRecordingAudioCommand
+from src.format_corrector import FormatCorrector
 
 from src.chat_api.chat_api.telegram_chat_api import TelegramChatApi
 from src.chat_api.chat_api.openwebui_chat_api import OpenwebuiChatApi
@@ -63,8 +64,10 @@ AUDIO_EXTENSION_PATH = "chrome_recorder_extension/"
 INSTANCE_ID_SCRIPT_PATH = "js_code/get_instance_id_script.js"
 MILVIS_HOST = "localhost"
 MILVIS_PORT = "19530"
-OPEN_WEB_UI_HOST = "localhost"
+OPEN_WEB_UI_HOST = "192.168.0.15"
 OPEN_WEB_UI_PORT = "8001"
+SUPPORTED_AUDIO_FORMATS = [".wav", ".mp3", ".m4a"]
+SUPPORTED_VIDEO_FORMATS = [".mp4", ".mov"]
 
 def init_logger():
     LOG_FORMAT = "%(asctime)s [%(levelname)s] %(message)s"
@@ -111,14 +114,15 @@ def load_commands(
         task_extractor: TaskExtractor,
         bitrix_manager: BitrixManager, 
         bots_manager: GoogleMeetBotsManager,
-        filter_factory: MessageFilterFactoryInterface) -> List[CommandInterface]:
+        filter_factory: MessageFilterFactoryInterface,
+        format_corrector: FormatCorrector) -> List[CommandInterface]:
     commands = []
     commands.append(StartCommand(filter_factory))
     # commands.append(GoogleMeetConnectCommand(bots_manager, filter_factory))
     commands.append(GoogleMeetRecordingAudioCommand(bots_manager, filter_factory))
-    commands.append(MessageTranscribeAudioCommand(filter_factory, dbx, task_extractor, bitrix_manager, TRANSCRIBE_REQUEST_LOG_DIR))
-    commands.append(DropboxTranscribeAudioCommand(filter_factory, dbx, task_extractor, bitrix_manager, TRANSCRIBE_REQUEST_LOG_DIR))
-    commands.append(MessageTranscribeAudioWithPreloadedNamesCommand(filter_factory, dbx, task_extractor, bitrix_manager, TRANSCRIBE_REQUEST_LOG_DIR))
+    commands.append(MessageTranscribeAudioCommand(filter_factory, dbx, task_extractor, bitrix_manager, TRANSCRIBE_REQUEST_LOG_DIR, format_corrector))
+    commands.append(DropboxTranscribeAudioCommand(filter_factory, dbx, task_extractor, bitrix_manager, TRANSCRIBE_REQUEST_LOG_DIR, format_corrector))
+    commands.append(MessageTranscribeAudioWithPreloadedNamesCommand(filter_factory, dbx, task_extractor, bitrix_manager, TRANSCRIBE_REQUEST_LOG_DIR, format_corrector))
     return commands
 
 class ApplicationContainer(containers.DeclarativeContainer):
@@ -131,9 +135,17 @@ class ApplicationContainer(containers.DeclarativeContainer):
         api_key=config.deepgram_api_key,
     )
 
+    # chat_api = providers.Singleton(
+    #     TelegramChatApi,
+    #     token=config.telegram_bot_token, 
+    #     audio_dir=providers.Object(AUDIO_DIR), 
+    #     video_dir=providers.Object(VIDEO_DIR), 
+    #     audio_extenstion=providers.Object(".wav")
+    # )
+
     chat_api = providers.Singleton(
         OpenwebuiChatApi,
-        openwebui_coordinator_url=providers.Object(f"{OPEN_WEB_UI_HOST}:{OPEN_WEB_UI_PORT}/"),
+        openwebui_coordinator_url=providers.Object(f"http://{OPEN_WEB_UI_HOST}:{OPEN_WEB_UI_PORT}/"),
         temp_path=providers.Object(AUDIO_DIR)
     )
 
@@ -189,13 +201,21 @@ class ApplicationContainer(containers.DeclarativeContainer):
 
     filter_factory = providers.Singleton(BaseMessageFilterFactory)
 
+    format_corrector = providers.Singleton(
+        FormatCorrector,
+        supported_audio_formats=providers.Object(SUPPORTED_AUDIO_FORMATS), 
+        supported_video_formats=providers.Object(SUPPORTED_VIDEO_FORMATS)
+    )
+        
+
     commands = providers.Singleton(
         load_commands,
         dbx=drop_box_manager, 
         task_extractor=task_extractor,
         bitrix_manager=bitrix_manager, 
         bots_manager=google_meet_bots_manager,
-        filter_factory=filter_factory
+        filter_factory=filter_factory,
+        format_corrector=format_corrector
     )
 
 def init_container() -> ApplicationContainer:

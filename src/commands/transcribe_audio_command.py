@@ -13,6 +13,8 @@ from src.chat_api.message_handler import MessageHandler
 from src.chat_api.chat.chat_interface import ChatInterface
 from src.chat_api.message_filters.interfaces.message_filter_factory_interface import MessageFilterFactoryInterface
 from src.chat_api.message_filters.base_filters.base_message_filter import BaseMessageFilter
+from src.exeptions.telegram_exceptions.not_supported_format_exception import NotSupportedFormatException
+from src.format_corrector import FormatCorrector
 import logging
 import json
 import requests
@@ -35,7 +37,14 @@ class TranscribeAudioCommand(CommandInterface):
                     return False
             return True
 
-    def __init__(self, filter_factory: MessageFilterFactoryInterface, audio_loader: AudioLoaderInterface, task_extractor: TaskExtractor, transcricribe_request_log_dir: str, bitrix_manager: BitrixManager, speaker_correction_state: str):
+    def __init__(self, 
+                 filter_factory: MessageFilterFactoryInterface, 
+                 audio_loader: AudioLoaderInterface, 
+                 task_extractor: TaskExtractor, 
+                 transcricribe_request_log_dir: str, 
+                 bitrix_manager: BitrixManager, 
+                 speaker_correction_state: str,
+                 format_corrector: FormatCorrector):
         self.filter_factory = filter_factory
         self.audio_loader = audio_loader
         self.task_extractor = task_extractor
@@ -43,6 +52,7 @@ class TranscribeAudioCommand(CommandInterface):
         self.bitrix_manager = bitrix_manager
         self.speaker_correction_state = speaker_correction_state
         self.command_state = "entry_point"
+        self.format_corrector = format_corrector
 
     async def save_log(self, request_log_path: str, request_log_dir: str, json_log: dict, chat: ChatInterface, reply_transription: bool = True):
         with open(request_log_path, "w", encoding="utf-8") as file:
@@ -90,9 +100,16 @@ class TranscribeAudioCommand(CommandInterface):
     
         json_log = dict()
 
-        audio_path = await message["audio_container"].get_file_path()
+        audio_path = await message["audio_container"].get_file_path() if "audio_container" in message else context["user_data"]["audio_path"]
         if audio_path is None:
             return chat.move_back(context)
+        
+        try:
+            self.format_corrector.check_path_format(audio_path)
+        except Exception as e:
+            await chat.send_message_to_query(str(TelegramBotException(e)))
+            return chat.move_back(context)
+
         await chat.send_message_to_query("⏮️ Файл был успешно загружен. Идёт обработка звука и анализ текста... 🔃")
 
         try:
