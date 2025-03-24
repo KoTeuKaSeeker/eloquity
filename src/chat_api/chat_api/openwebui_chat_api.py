@@ -19,8 +19,8 @@ class OpenwebuiChatApi():
     openwebui_coordinator_url: str
     handler_states: Dict[str, List[MessageHandler]]
     user_data_dicts: Dict[int, dict]
-    user_active_states: Dict[int, str]
-    user_active_task: Dict[int, dict]
+    user_active_states: Dict[str, str]
+    user_active_task: Dict[str, dict]
     temp_path: str
 
     def __init__(self, openwebui_coordinator_url: str, temp_path: str):
@@ -56,14 +56,15 @@ class OpenwebuiChatApi():
         return message
     
     def get_context_dict(self, task: dict):
-        user_id = task["user_id"]
+        user_chat_id = f"{task['user_id']}_{task['chat_id']}"
 
         context = {}
-        context["user_id"] = user_id
+        context["user_id"] = task['user_id']
+        context["chat_id"] = task['chat_id']
         
-        if user_id not in self.user_data_dicts:
-            self.user_data_dicts[user_id] = {}
-        context["user_data"] = self.user_data_dicts[user_id]
+        if user_chat_id not in self.user_data_dicts:
+            self.user_data_dicts[user_chat_id] = {}
+        context["user_data"] = self.user_data_dicts[user_chat_id]
 
         return context
             
@@ -81,17 +82,17 @@ class OpenwebuiChatApi():
         response = requests.post(f"{self.openwebui_coordinator_url}/task/{task_id}/update_status", params=status_data)
 
     async def handle_user_task(self, task: dict):
-        user_id = task["user_id"]
+        user_chat_id = f"{task['user_id']}_{task['chat_id']}"
 
         message = self.get_message_dict(task)
         context = self.get_context_dict(task)
         chat = OpenWebUIChat(task, self.openwebui_coordinator_url)
 
         
-        if user_id not in self.user_active_states:
-            self.user_active_states[user_id] = "entry_point"
+        if user_chat_id not in self.user_active_states:
+            self.user_active_states[user_chat_id] = "entry_point"
 
-        active_state = self.user_active_states[user_id]
+        active_state = self.user_active_states[user_chat_id]
         handlers = self.handler_states[active_state]
         
         filtered_handler = self.filter_handlers(handlers, message)
@@ -99,8 +100,8 @@ class OpenwebuiChatApi():
         if filtered_handler is not None:
             new_state = await filtered_handler.get_message_handler()(message, context, chat)
 
-        self.user_active_states[user_id] = new_state
-        self.user_active_task[user_id] = None
+        self.user_active_states[user_chat_id] = new_state
+        self.user_active_task[user_chat_id] = None
         self.update_task_status(task["task_id"], "Done")
         
 
@@ -111,15 +112,15 @@ class OpenwebuiChatApi():
 
             pending_tasks = [task for task in data["tasks"] if task["status"] == "Pending"]
             for task in pending_tasks:
-                user_id = task["user_id"]
-                if user_id not in self.user_active_task:
-                    self.user_active_task[user_id] = None
+                user_chat_id = f"{task['user_id']}_{task['chat_id']}"
+                if user_chat_id not in self.user_active_task:
+                    self.user_active_task[user_chat_id] = None
                 
-                user_task = self.user_active_task[user_id]
+                user_task = self.user_active_task[user_chat_id]
                 if user_task != None:
                     continue
                 
-                self.user_active_task[user_id] = task
+                self.user_active_task[user_chat_id] = task
                 asyncio.create_task(self.handle_user_task(task))
             await asyncio.sleep(poll_interval)
 

@@ -34,7 +34,7 @@ class OpenWebUIChat(ChatInterface):
         def make_request(files: dict = {}):
             response = requests.post(
                     f"{self.openwebui_coordinator_url}/task/create",
-                    data={"user_id": self.task["user_id"], "message": message_text},
+                    data={"user_id": self.task["user_id"], "chat_id": self.task["chat_id"], "message": message_text},
                     files=files
                 )
 
