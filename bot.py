@@ -37,9 +37,15 @@ from src.chat_api.message_filters.factories.base_message_filter_factory import B
 from src.commands.google_meet_connect_commands.google_meet_connect_command import GoogleMeetConnectCommand
 from src.commands.google_meet_connect_commands.google_meet_recording_audio_command import GoogleMeetRecordingAudioCommand
 from src.format_corrector import FormatCorrector
+from src.commands.transcibe_llm_command import TranscibeLLMCommand
+from src.AI.llm.gpttunnel_model import GptunnelModel
+from src.AI.llm.llm_interface import LLMInterface
+from src.transcribers.transcriber_interface import TranscriberInterface
+from src.transcribers.deepgram_transcriber import DeepgramTranscriber
 
 from src.chat_api.chat_api.telegram_chat_api import TelegramChatApi
 from src.chat_api.chat_api.openwebui_chat_api import OpenwebuiChatApi
+from src.commands.summury_llm_command import SummuryLLMCommand
 
 #TODO #TODO #TODO #TODO #TODO #TODO #TODO #TODO #TODO #TODO
 # Транскрибатор падает, если получает на вход запись, в котором не сказанно ни одного слова. 
@@ -110,19 +116,13 @@ def init_logger():
     logging.getLogger("sieve").setLevel(logging.CRITICAL)
 
 def load_commands(
-        dbx: DropBoxManager, 
-        task_extractor: TaskExtractor,
-        bitrix_manager: BitrixManager, 
-        bots_manager: GoogleMeetBotsManager,
-        filter_factory: MessageFilterFactoryInterface,
-        format_corrector: FormatCorrector) -> List[CommandInterface]:
+        llm_model: LLMInterface, 
+        filter_factory: MessageFilterFactoryInterface, 
+        transcriber: TranscriberInterface) -> List[CommandInterface]:
     commands = []
-    commands.append(StartCommand(filter_factory))
-    # commands.append(GoogleMeetConnectCommand(bots_manager, filter_factory))
-    commands.append(GoogleMeetRecordingAudioCommand(bots_manager, filter_factory))
-    commands.append(MessageTranscribeAudioCommand(filter_factory, dbx, task_extractor, bitrix_manager, TRANSCRIBE_REQUEST_LOG_DIR, format_corrector))
-    commands.append(DropboxTranscribeAudioCommand(filter_factory, dbx, task_extractor, bitrix_manager, TRANSCRIBE_REQUEST_LOG_DIR, format_corrector))
-    commands.append(MessageTranscribeAudioWithPreloadedNamesCommand(filter_factory, dbx, task_extractor, bitrix_manager, TRANSCRIBE_REQUEST_LOG_DIR, format_corrector))
+
+    commands.append(SummuryLLMCommand(llm_model, filter_factory, transcriber, AUDIO_DIR))
+
     return commands
 
 class ApplicationContainer(containers.DeclarativeContainer):
@@ -206,16 +206,18 @@ class ApplicationContainer(containers.DeclarativeContainer):
         supported_audio_formats=providers.Object(SUPPORTED_AUDIO_FORMATS), 
         supported_video_formats=providers.Object(SUPPORTED_VIDEO_FORMATS)
     )
-        
+    
+    llm_model = providers.Singleton(
+        GptunnelModel,
+        api_key=config.gptunnel_api_key, 
+        model_name=providers.Object("gpt-4o")
+    )
 
     commands = providers.Singleton(
         load_commands,
-        dbx=drop_box_manager, 
-        task_extractor=task_extractor,
-        bitrix_manager=bitrix_manager, 
-        bots_manager=google_meet_bots_manager,
+        llm_model=llm_model,
         filter_factory=filter_factory,
-        format_corrector=format_corrector
+        transcriber=audio_transcriber
     )
 
 def init_container() -> ApplicationContainer:
