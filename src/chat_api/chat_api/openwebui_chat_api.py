@@ -18,7 +18,6 @@ import pytz
 class OpenwebuiChatApi():
     openwebui_coordinator_url: str
     handler_states: Dict[str, List[MessageHandler]]
-    handler_state_bundles = Dict[str, dict]
     user_data_dicts: Dict[int, dict]
     user_active_states: Dict[str, str]
     user_active_task: Dict[str, dict]
@@ -27,7 +26,6 @@ class OpenwebuiChatApi():
     def __init__(self, openwebui_coordinator_url: str, temp_path: str):
         self.openwebui_coordinator_url = openwebui_coordinator_url
         self.handler_states = {}
-        self.handler_state_bundles = {}
         self.user_data_dicts = {}
         self.user_active_states = {}
         self.user_active_task = {}
@@ -36,8 +34,9 @@ class OpenwebuiChatApi():
     def set_handler_states(self, handler_states: Dict[str, List[MessageHandler]]):
         self.handler_states = handler_states
     
-    def set_handler_state_bundles(self, handler_state_bundles: Dict[str, dict]):
-        self.handler_state_bundles = handler_state_bundles
+    def get_data_key(self, task: dict, use_model_name: bool = True):
+        model_key = f"-{task['model_name']}" if use_model_name else ""
+        return f"{task['user_id']}-{task['chat_id']}{model_key}"
 
     def get_message_dict(self, task: dict):
         message = {}
@@ -61,15 +60,16 @@ class OpenwebuiChatApi():
         return message
     
     def get_context_dict(self, task: dict):
-        user_chat_id = f"{task['user_id']}_{task['chat_id']}"
+        data_key = self.get_data_key(task)
 
         context = {}
         context["user_id"] = task['user_id']
         context["chat_id"] = task['chat_id']
+        context["model_name"] = task['model_name']
         
-        if user_chat_id not in self.user_data_dicts:
-            self.user_data_dicts[user_chat_id] = {}
-        context["user_data"] = self.user_data_dicts[user_chat_id]
+        if data_key not in self.user_data_dicts:
+            self.user_data_dicts[data_key] = {}
+        context["user_data"] = self.user_data_dicts[data_key]
 
         return context
             
@@ -87,47 +87,46 @@ class OpenwebuiChatApi():
         response = requests.post(f"{self.openwebui_coordinator_url}/task/{task_id}/update_status", params=status_data)
 
     async def handle_user_task(self, task: dict):
-        user_chat_id = f"{task['user_id']}_{task['chat_id']}"
+        data_key = self.get_data_key(task)
 
         message = self.get_message_dict(task)
         context = self.get_context_dict(task)
         chat = OpenWebUIChat(task, self.openwebui_coordinator_url)
 
-        if user_chat_id not in self.user_active_states:
-            self.user_active_states[user_chat_id] = "entry_point"
+        if data_key not in self.user_active_states:
+            self.user_active_states[data_key] = "entry_point"
 
-        active_state = self.user_active_states[user_chat_id]
-        # handlers = self.handler_states[active_state]
-        handlers = self.handler_state_bundles[task["model_name"]][active_state]
+        active_state = self.user_active_states[data_key]
+        handlers = self.handler_states[active_state]
         
         filtered_handler = self.filter_handlers(handlers, message)
         new_state = active_state
         if filtered_handler is not None:
             new_state = await filtered_handler.get_message_handler()(message, context, chat)
 
-        self.user_active_states[user_chat_id] = new_state
-        self.user_active_task[user_chat_id] = None
+        self.user_active_states[data_key] = new_state
+        self.user_active_task[data_key] = None
         self.update_task_status(task["task_id"], "Done")
         
 
-    async def polling_loop(self, poll_interval: int = 3):
+    async def polling_loop(self, poll_interval: float = 3):
         while True:
             response = requests.get(self.openwebui_coordinator_url + "tasks")
             data = response.json()
 
             pending_tasks = [task for task in data["tasks"] if task["status"] == "Pending"]
             for task in pending_tasks:
-                user_chat_id = f"{task['user_id']}_{task['chat_id']}"
-                if user_chat_id not in self.user_active_task:
-                    self.user_active_task[user_chat_id] = None
+                data_key = self.get_data_key(task)
+                if data_key not in self.user_active_task:
+                    self.user_active_task[data_key] = None
                 
-                user_task = self.user_active_task[user_chat_id]
+                user_task = self.user_active_task[data_key]
                 if user_task != None:
                     continue
                 
-                self.user_active_task[user_chat_id] = task
+                self.user_active_task[data_key] = task
                 asyncio.create_task(self.handle_user_task(task))
             await asyncio.sleep(poll_interval)
 
-    def start(self, poll_interval: int = 3):
+    def start(self, poll_interval: float = 3):
         asyncio.run(self.polling_loop(poll_interval))

@@ -15,8 +15,10 @@ class GptunnelModel(LLMInterface):
     def set_system_prompt(self, prompt: str):
         self.system_prompt = prompt
 
+    def get_response(self, message: str, system_prompt: str = None) -> str:
+        if system_prompt == None:
+            system_prompt = self.system_prompt
 
-    def get_response(self, message: str) -> str:
         headers = {
             "Authorization": self.api_key,
             "Content-Type": "application/json"
@@ -24,8 +26,8 @@ class GptunnelModel(LLMInterface):
 
         messages = []
         
-        if self.system_prompt is not None:
-            messages.append({"role": "system", "content": self.system_prompt})
+        if system_prompt is not None:
+            messages.append({"role": "system", "content": system_prompt})
         
         messages.append({"role": "user", "content": message})
 

@@ -7,11 +7,10 @@ from src.chat_api.message_handler import MessageHandler
 from src.chat_api.chat.chat_interface import ChatInterface
 
 class HrLLMCommand(TranscibeLLMCommand):
-    def __init__(self, model: LLMInterface, filter_factory: MessageFilterFactoryInterface, transcriber: TranscriberInterface, temp_path: str):
-        super().__init__(model, filter_factory, transcriber, temp_path)
-        self.transcribe_state = "entry_point" 
-        self.chatting_state = "summury_llm_command.chatting_state"
-        self.model.set_system_prompt("""
+    def __init__(self, model: LLMInterface, filter_factory: MessageFilterFactoryInterface, transcriber: TranscriberInterface, temp_path: str, entry_point_state: str):
+        super().__init__(model, filter_factory, transcriber, temp_path, entry_point_state)
+        self.chatting_state = "hr_llm_command.chatting_state"
+        self.system_prompt = """
 Ты — помощник по анализу транскрипций интервью. Тебя зовут Production HR Manatee. Твоя задача — на основе предоставленной транскрибации интервью составить отчет, следуя указанному пользователем формату. Ты должен точно и структурированно следовать тому, как пользователь запросил вывод.
 
 Интерфейс:
@@ -23,7 +22,7 @@ class HrLLMCommand(TranscibeLLMCommand):
 1. Если пользователь не предоставил формат, тогда ты ДОЛЖЕН вывести отчет с включением следующих разделов: "Технические навыки", "Софт скилы", "Хард скилы", "Соответствие запросу", "Вывод"
 2. Если пользователь ввёл что то, не связанное с интервью и форматом, ты ДОЛЖЕН попросить его предоставить информацию и том, на какую должность было проведено интервью и также сказать что пользователь может при желании указать формат.
 3. Не говори с пользователем на какие либо отвлечённые задачи, у тебя едиственная задача - предоставить отчет по интервью.
-""")
+"""
 
     async def after_transcribe_message(self, message: dict, context: dict, chat: ChatInterface):
         if "model_context" not in context["user_data"]:
@@ -57,8 +56,11 @@ class HrLLMCommand(TranscibeLLMCommand):
 
 Кандидат: Спасибо вам. Было приятно пообщаться."""
 
-        response = self.model.get_response(f"Транскрипция интервью: {transcription}\n\n Предварительная информация: \n\n{message['text']}")
+        pred_info = message['text'] if 'text' in message else "Нет"
+        response = self.model.get_response(f"Транскрипция интервью: {transcription}\n\n Предварительная информация: \n\n{pred_info}", self.system_prompt)
 
-        print(message["text"])
+        print(pred_info)
 
         await chat.send_message_to_query(response)
+
+        return chat.stay_on_state(context)

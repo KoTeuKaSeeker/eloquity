@@ -46,11 +46,14 @@ class ChatInterface(ABC):
             context["user_data"]["state"] = self.get_entry_point_state()
 
 
-    def move_next(self, context: dict, move_to: str, prev_state: str):
-        move_to_state = self.get_entry_point_state() if move_to == "entry_point" else move_to
-        prev = self.get_entry_point_state() if prev_state == "entry_point" else prev_state
-
+    def move_next(self, context: dict, move_to: str, prev_state: str = None):
         self.__init_states(context)
+        move_to_state = self.get_entry_point_state() if move_to == "entry_point" else move_to
+        
+        prev = context["user_data"]["state"]
+        if prev_state is not None:
+            prev = self.get_entry_point_state() if prev_state == "entry_point" else prev_state
+
         context["user_data"]["state_stack"].append(prev)
         context["user_data"]["state"] = move_to_state
         return move_to_state

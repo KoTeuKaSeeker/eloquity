@@ -13,12 +13,12 @@ class TranscibeLLMCommand(LLMCommand):
     transcriber: TranscriberInterface
     temp_path: str
 
-    def __init__(self, model: LLMInterface, filter_factory: MessageFilterFactoryInterface, transcriber: TranscriberInterface, temp_path: str):
+    def __init__(self, model: LLMInterface, filter_factory: MessageFilterFactoryInterface, transcriber: TranscriberInterface, temp_path: str,  entry_point_state: str):
         super().__init__(model, filter_factory)
 
         self.transcriber = transcriber
         self.temp_path = temp_path
-        self.transcribe_state = "entry_point" 
+        self.transcribe_state = entry_point_state
         self.chatting_state = "transcribe_llm_command.chatting_state"
     
     async def transcirbe_audio(self, message: dict, context: dict, chat: ChatInterface):
@@ -37,13 +37,12 @@ class TranscibeLLMCommand(LLMCommand):
         await chat.send_file_to_query(transcription_path)
 
         context["user_data"]["model_context"] = transcription
-        await self.after_transcribe_message(message, context, chat)
 
-        # return chat.move_next(context, self.chatting_state, self.transcribe_state)
-        return self.transcribe_state
+        return await self.after_transcribe_message(message, context, chat)
     
     async def after_transcribe_message(self, message: dict, context: dict, chat: ChatInterface):
         await chat.send_message_to_query("⏮️ Сейчас можете продолжить беседу с ботом - он имеет транскрибацию в памяти.")
+        return chat.move_next(context, self.chatting_state)
 
     async def waiting_audio_message(self, message: dict, context: dict, chat: ChatInterface):
         await chat.send_message_to_query("⏮️ Отправьте аудиозапись для продолжения взаимодействия с ботом.")
@@ -52,11 +51,14 @@ class TranscibeLLMCommand(LLMCommand):
     def get_conversation_states(self) -> Dict[str, MessageHandler]:
         states = super().get_conversation_states()
         
-        states[self.transcribe_state] = [
+        audio_trancribe_states = [
             MessageHandler(self.filter_factory.create_filter("audio"), self.transcirbe_audio),
             MessageHandler(self.filter_factory.create_filter("voice"), self.transcirbe_audio),
             MessageHandler(self.filter_factory.create_filter("video"), self.transcirbe_audio),
             MessageHandler(self.filter_factory.create_filter("all"), self.waiting_audio_message),
         ]
+
+        states[self.transcribe_state] = audio_trancribe_states
+        states[self.chatting_state] += audio_trancribe_states
 
         return states

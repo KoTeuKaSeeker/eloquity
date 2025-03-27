@@ -47,6 +47,7 @@ from src.chat_api.chat_api.telegram_chat_api import TelegramChatApi
 from src.chat_api.chat_api.openwebui_chat_api import OpenwebuiChatApi
 from src.commands.summury_llm_command import SummuryLLMCommand
 from src.commands.hr_llm_command import HrLLMCommand
+from src.commands.direct_start_command import DirectStartCommand
 
 #TODO #TODO #TODO #TODO #TODO #TODO #TODO #TODO #TODO #TODO
 # Транскрибатор падает, если получает на вход запись, в котором не сказанно ни одного слова. 
@@ -122,8 +123,9 @@ def load_commands(
         transcriber: TranscriberInterface) -> List[CommandInterface]:
     commands = []
 
-    commands.append(SummuryLLMCommand(llm_model, filter_factory, transcriber, AUDIO_DIR))
-    # commands.append(HrLLMCommand(llm_model, filter_factory, transcriber, AUDIO_DIR))
+    commands.append(DirectStartCommand(filter_factory, {"summury_assistant": "summury_llm_command", "hr_assistant": "hr_llm_command"}))
+    commands.append(SummuryLLMCommand(llm_model, filter_factory, transcriber, AUDIO_DIR, entry_point_state="summury_llm_command"))
+    commands.append(HrLLMCommand(llm_model, filter_factory, transcriber, AUDIO_DIR, entry_point_state="hr_llm_command"))
 
     return commands
 
@@ -250,50 +252,15 @@ if __name__ == "__main__":
     container = init_container()
     logging.info("Initialization complete. Bot is ready to work")
 
-    llm_model = GptunnelModel(os.getenv("GPTUNNEL_API_KEY"), "gpt-4o")
-    filter_factory = BaseMessageFilterFactory()
+    conversation_states_manager = container.conversation_states_manager()
+    for command in container.commands():
+        conversation_states_manager.add_conversation_states(command.get_conversation_states())
+        conversation_states_manager.add_entry_points(command.get_entry_points())
 
-    # audio_transcriber = providers.Singleton(
-    #         DeepgramTranscriber,
-    #         api_key=os.getenv("DEEPGRAM_API_KEY"),
-    #     )
-    
-    audio_transcriber = DeepgramTranscriber(os.getenv("DEEPGRAM_API_KEY"))
-
-    hr_assistant_commands = []
-    summary_assistant_commands = []
-    
-    hr_assistant_commands.append(HrLLMCommand(llm_model, filter_factory, audio_transcriber, AUDIO_DIR))
-    summary_assistant_commands.append(SummuryLLMCommand(llm_model, filter_factory, audio_transcriber, AUDIO_DIR))
-
-
-    # commands = []
-
-    hr_assistant_conv_manager = ConversationStatesManager()
-    summary_assistant_conv_manager = ConversationStatesManager()
-
-
-    for command in hr_assistant_commands:
-        hr_assistant_conv_manager.add_conversation_states(command.get_conversation_states())
-        hr_assistant_conv_manager.add_entry_points(command.get_entry_points())
-    
-    for command in summary_assistant_commands:
-        summary_assistant_conv_manager.add_conversation_states(command.get_conversation_states())
-        summary_assistant_conv_manager.add_entry_points(command.get_entry_points())
-    
-    # conversation_states_manager = container.conversation_states_manager()
-    # for command in container.commands():
-    #     conversation_states_manager.add_conversation_states(command.get_conversation_states())
-    #     conversation_states_manager.add_entry_points(command.get_entry_points())
-
-    # states = conversation_states_manager.create_conversation_states()
-
-    state_bundle = {"hr_assistant": hr_assistant_conv_manager.create_conversation_states(),
-                    "summury_assistant": summary_assistant_conv_manager.create_conversation_states()}
+    states = conversation_states_manager.create_conversation_states()
 
     chat_api = container.chat_api()
-    # chat_api.set_handler_states(states)
-    chat_api.set_handler_state_bundles(state_bundle)
+    chat_api.set_handler_states(states)
 
     logging.info("Polling for new events")
-    chat_api.start(poll_interval=3)
+    chat_api.start(poll_interval=0.5)
