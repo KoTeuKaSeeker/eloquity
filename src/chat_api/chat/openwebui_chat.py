@@ -3,8 +3,8 @@ import asyncio
 from src.chat_api.chat.chat_interface import ChatInterface
 import requests
 
-
 class OpenWebUIChat(ChatInterface):
+
     task: dict
     openwebui_coordinator_url: str
 

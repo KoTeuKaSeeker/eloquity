@@ -18,6 +18,7 @@ import pytz
 class OpenwebuiChatApi():
     openwebui_coordinator_url: str
     handler_states: Dict[str, List[MessageHandler]]
+    handler_state_bundles = Dict[str, dict]
     user_data_dicts: Dict[int, dict]
     user_active_states: Dict[str, str]
     user_active_task: Dict[str, dict]
@@ -26,6 +27,7 @@ class OpenwebuiChatApi():
     def __init__(self, openwebui_coordinator_url: str, temp_path: str):
         self.openwebui_coordinator_url = openwebui_coordinator_url
         self.handler_states = {}
+        self.handler_state_bundles = {}
         self.user_data_dicts = {}
         self.user_active_states = {}
         self.user_active_task = {}
@@ -33,6 +35,9 @@ class OpenwebuiChatApi():
         
     def set_handler_states(self, handler_states: Dict[str, List[MessageHandler]]):
         self.handler_states = handler_states
+    
+    def set_handler_state_bundles(self, handler_state_bundles: Dict[str, dict]):
+        self.handler_state_bundles = handler_state_bundles
 
     def get_message_dict(self, task: dict):
         message = {}
@@ -88,12 +93,12 @@ class OpenwebuiChatApi():
         context = self.get_context_dict(task)
         chat = OpenWebUIChat(task, self.openwebui_coordinator_url)
 
-        
         if user_chat_id not in self.user_active_states:
             self.user_active_states[user_chat_id] = "entry_point"
 
         active_state = self.user_active_states[user_chat_id]
-        handlers = self.handler_states[active_state]
+        # handlers = self.handler_states[active_state]
+        handlers = self.handler_state_bundles[task["model_name"]][active_state]
         
         filtered_handler = self.filter_handlers(handlers, message)
         new_state = active_state

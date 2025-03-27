@@ -37,11 +37,12 @@ class TranscibeLLMCommand(LLMCommand):
         await chat.send_file_to_query(transcription_path)
 
         context["user_data"]["model_context"] = transcription
-        await self.after_transcribe_message(context, chat)
+        await self.after_transcribe_message(message, context, chat)
 
-        return chat.move_next(context, self.chatting_state, self.transcribe_state)
+        # return chat.move_next(context, self.chatting_state, self.transcribe_state)
+        return self.transcribe_state
     
-    async def after_transcribe_message(self, context: dict, chat: ChatInterface):
+    async def after_transcribe_message(self, message: dict, context: dict, chat: ChatInterface):
         await chat.send_message_to_query("⏮️ Сейчас можете продолжить беседу с ботом - он имеет транскрибацию в памяти.")
 
     async def waiting_audio_message(self, message: dict, context: dict, chat: ChatInterface):

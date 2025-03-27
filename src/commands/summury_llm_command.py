@@ -12,7 +12,7 @@ class SummuryLLMCommand(TranscibeLLMCommand):
         self.transcribe_state = "entry_point" 
         self.chatting_state = "summury_llm_command.chatting_state"
 
-    async def after_transcribe_message(self, context: dict, chat: ChatInterface):
+    async def after_transcribe_message(self, message: dict, context: dict, chat: ChatInterface):
         if "model_context" not in context["user_data"]:
             context["user_data"]["model_context"] = ""
         transcription = context["user_data"]["model_context"]

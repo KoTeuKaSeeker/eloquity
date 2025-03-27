@@ -13,6 +13,7 @@ class Task:
     task_id: str
     user_id: str
     chat_id: str
+    model_name: str
     initial_message: str
     initial_file: str
     status: str
@@ -41,6 +42,7 @@ class TaskResponse(BaseModel):
     task_id: str
     user_id: str
     chat_id: str
+    model_name: str
     initial_message: str
     initial_file: str
     status: str
@@ -50,9 +52,17 @@ class TaskResponse(BaseModel):
 # Create the router
 router = APIRouter()
 
+@router.get("/")
+async def health_check():
+    return {"status": 200, "message": "The OpenWebUI Coordinator is in good health and ready to accept tasks."}
+
 # 1. POST /task/create
 @router.post("/task/create")
-async def create_task(user_id: str = Form(...), chat_id: str = Form(...), message: str = Form(...), file: Optional[UploadFile] = File(None)):
+async def create_task(user_id: str = Form(...), 
+                      chat_id: str = Form(...), 
+                      model_name: str = Form(...), 
+                      message: str = Form(...), 
+                      file: Optional[UploadFile] = File(None)):
     file_url = ""
     if file is not None:
         file_url = upload_file(file)
@@ -62,6 +72,7 @@ async def create_task(user_id: str = Form(...), chat_id: str = Form(...), messag
         task_id=task_id,
         user_id=user_id,
         chat_id=chat_id,
+        model_name=model_name,
         initial_message=message,
         initial_file=file_url,
         status="Pending",  # Default status
@@ -77,6 +88,7 @@ async def create_task(user_id: str = Form(...), chat_id: str = Form(...), messag
         task_id=task_id,
         user_id=task.user_id,
         chat_id=task.chat_id,
+        model_name=task.model_name,
         initial_message=task.initial_message,
         initial_file=task.initial_file,
         status=task.status,
@@ -85,7 +97,7 @@ async def create_task(user_id: str = Form(...), chat_id: str = Form(...), messag
     )
 
 @router.post("/task/modify")
-async def create_task(task_id: str = Form(...), user_id: str = Form(...), chat_id: str = Form(...), message: str = Form(...), file: Optional[UploadFile] = File(None)):
+async def modify_task(task_id: str = Form(...), user_id: str = Form(...), chat_id: str = Form(...), message: str = Form(...), file: Optional[UploadFile] = File(None)):
     file_url = ""
     if file is not None:
         file_url = upload_file(file)
@@ -114,6 +126,7 @@ async def create_task(task_id: str = Form(...), user_id: str = Form(...), chat_i
         task_id=task_id,
         user_id=task.user_id,
         chat_id=task.chat_id,
+        model_name=task.model_name,
         initial_message=task.initial_message,
         initial_file=task.initial_file,
         status=task.status,
@@ -173,6 +186,7 @@ async def get_task(task_id: str):
         task_id=task_id,
         user_id=task.user_id,
         chat_id=task.chat_id,
+        model_name=task.model_name,
         initial_message=task.initial_message,
         initial_file=task.initial_file,
         status=task.status,

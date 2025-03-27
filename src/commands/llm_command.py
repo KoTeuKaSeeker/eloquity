@@ -26,7 +26,6 @@ class LLMCommand(CommandInterface):
         if "model_context" not in context["user_data"]:
             context["user_data"]["model_context"] = ""
         model_context = context["user_data"]["model_context"]
-        
 
         dialog = "\n".join(messages_history)
         content = f"Контекстная информация:\n{model_context}\n\nТы ведёшь диалог с пользователем [USER] от имени [BOT]. Диалог может быть пустым, может содержать вопросы от пользователя - просто веди с ним беседу. Вот диалог:\n{dialog}\n\n Твой ответ:\n[BOT]: "
