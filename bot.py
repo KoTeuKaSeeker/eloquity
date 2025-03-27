@@ -42,12 +42,16 @@ from src.AI.llm.gpttunnel_model import GptunnelModel
 from src.AI.llm.llm_interface import LLMInterface
 from src.transcribers.transcriber_interface import TranscriberInterface
 from src.transcribers.deepgram_transcriber import DeepgramTranscriber
+from src.chat_api.chat_api.chat_api_interface import ChatApiInterface
 
 from src.chat_api.chat_api.telegram_chat_api import TelegramChatApi
 from src.chat_api.chat_api.openwebui_chat_api import OpenwebuiChatApi
 from src.commands.summury_llm_command import SummuryLLMCommand
 from src.commands.hr_llm_command import HrLLMCommand
 from src.commands.direct_start_command import DirectStartCommand
+import threading
+import asyncio
+import time
 
 #TODO #TODO #TODO #TODO #TODO #TODO #TODO #TODO #TODO #TODO
 # Транскрибатор падает, если получает на вход запись, в котором не сказанно ни одного слова. 
@@ -139,15 +143,15 @@ class ApplicationContainer(containers.DeclarativeContainer):
         api_key=config.deepgram_api_key,
     )
 
-    # chat_api = providers.Singleton(
-    #     TelegramChatApi,
-    #     token=config.telegram_bot_token, 
-    #     audio_dir=providers.Object(AUDIO_DIR), 
-    #     video_dir=providers.Object(VIDEO_DIR), 
-    #     audio_extenstion=providers.Object(".wav")
-    # )
+    telegram_chat_api = providers.Singleton(
+        TelegramChatApi,
+        token=config.telegram_bot_token, 
+        audio_dir=providers.Object(AUDIO_DIR), 
+        video_dir=providers.Object(VIDEO_DIR), 
+        audio_extenstion=providers.Object(".wav")
+    )
 
-    chat_api = providers.Singleton(
+    openwebui_chat_api = providers.Singleton(
         OpenwebuiChatApi,
         openwebui_coordinator_url=providers.Object(f"http://{OPEN_WEB_UI_HOST}:{OPEN_WEB_UI_PORT}/"),
         temp_path=providers.Object(AUDIO_DIR)
@@ -259,8 +263,24 @@ if __name__ == "__main__":
 
     states = conversation_states_manager.create_conversation_states()
 
-    chat_api = container.chat_api()
-    chat_api.set_handler_states(states)
+    telegram_chat_api = container.telegram_chat_api()
+    openwebui_chat_api = container.openwebui_chat_api()
+
+    telegram_chat_api.set_handler_states(states)
+    openwebui_chat_api.set_handler_states(states)
 
     logging.info("Polling for new events")
-    chat_api.start(poll_interval=0.5)
+    
+    def start_async_chatapi(chat_api: ChatApiInterface):
+            loop = asyncio.new_event_loop()  # Создаём новый event loop
+            asyncio.set_event_loop(loop)     # Назначаем его текущим для потока
+            chat_api.start(poll_interval=0.5)
+
+    telegram_chat_thread = threading.Thread(target=start_async_chatapi, args=[telegram_chat_api])
+    openwebui_chat_thread = threading.Thread(target=start_async_chatapi, args=[openwebui_chat_api])
+
+    telegram_chat_thread.start()
+    openwebui_chat_thread.start()
+
+    while True:
+        time.sleep(1)

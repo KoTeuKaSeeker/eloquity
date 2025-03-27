@@ -1,6 +1,6 @@
-from typing import Any
+from typing import Any, List
 from src.chat_api.chat.chat_interface import ChatInterface
-from telegram import Update, Message, Chat, MessageEntity, Audio, Voice, Video, Document, User
+from telegram import Update, Message, Chat, MessageEntity, Audio, Voice, Video, Document, User, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext, ConversationHandler
 import datetime
 import asyncio
@@ -8,13 +8,22 @@ import asyncio
 class TelegramChat(ChatInterface):
     update: Update
     context: CallbackContext
+    max_message_length: int = 4096
 
     def __init__(self, update: Update, context: CallbackContext):
         self.update = update
         self.context = context
 
     async def send_message_to_query(self, message: str):
-        await self.update.message.reply_text(message, connect_timeout=60)
+        if len(message) > self.max_message_length:
+            message_parts = [message[i*self.max_message_length:(i+1)*self.max_message_length] for i in range(len(message) // self.max_message_length)]
+            if len(message) % self.max_message_length > 0:
+                message_parts.append(message[-len(message) % self.max_message_length:])
+            
+            for part in message_parts:
+                await self.update.message.reply_text(part, connect_timeout=60)    
+        else:
+            await self.update.message.reply_text(message, connect_timeout=60)
 
     async def send_file_to_query(self, file_path: str, file_name: str = "some_file"):
         with open(file_path, "rb") as file:

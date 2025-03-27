@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, List
 from abc import ABC, abstractmethod
 import asyncio
 
@@ -18,6 +18,7 @@ class ChatInterface(ABC):
             С помощью этой функции можно произвольно отправлять сообщеине другим хэндлерам, и, в дальнейшем, переходить на них.
         """
         pass
+
 
     @abstractmethod
     def get_entry_point_state(self) -> Any:

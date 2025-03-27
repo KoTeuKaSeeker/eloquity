@@ -65,11 +65,11 @@ class OpenwebuiChatApi():
         context = {}
         context["user_id"] = task['user_id']
         context["chat_id"] = task['chat_id']
-        context["model_name"] = task['model_name']
         
         if data_key not in self.user_data_dicts:
             self.user_data_dicts[data_key] = {}
         context["user_data"] = self.user_data_dicts[data_key]
+        context["user_data"]["model_name"] = task['model_name']
 
         return context
             
