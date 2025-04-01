@@ -36,7 +36,9 @@ class HrLLMCommand(TranscibeLLMCommand):
     async def after_transcribe_message(self, message: dict, context: dict, chat: ChatInterface):
         if "model_context" not in context["user_data"]:
             context["user_data"]["model_context"] = ""
-        transcription = context["user_data"]["model_context"]
+        
+        messages_history = context["user_data"]["messages_history"]
+        # transcription = context["user_data"]["model_context"]
 #         transcription = """Интервьюер: Добрый день, спасибо, что нашли время для интервью. Давайте начнем с того, чтобы вы рассказали немного о своем опыте в области машинного обучения.
 
 # Кандидат: Добрый день, спасибо за возможность. Я работаю в области машинного обучения более 8 лет. Начинал с анализа данных, использовал Python и библиотеки вроде Pandas и Scikit-learn для предсказаний и классификаций. В последние несколько лет я фокусируюсь на нейронных сетях и разработке LLM моделей. Работал с такими технологиями, как TensorFlow и PyTorch, а также с крупными моделями, подобными GPT.
@@ -65,19 +67,18 @@ class HrLLMCommand(TranscibeLLMCommand):
 
 # Кандидат: Спасибо вам. Было приятно пообщаться."""
 
-        pred_info = message['text'] if 'text' in message else "Нет"
-        command_message = """
-            Спроси пользователя, чтобы с самого начала он ввёл формат отчёта. Если он не захочет ввести формат отчёта, тогда 
-        """
-        response = self.model.get_response(f"Транскрипция интервью: {transcription}\n\n Предварительная информация: \n\n{pred_info}\n\nЧто нужно делать: {command_message}", self.system_prompt)
+        # pred_info = message['text'] if 'text' in message else "Нет"
+        # command_message = """
+        #     Спроси пользователя, чтобы с самого начала он ввёл формат отчёта. Если он не захочет ввести формат отчёта, тогда 
+        # """
+        # response = self.model.get_response(f"Транскрипция интервью: {transcription}\n\n Предварительная информация: \n\n{pred_info}\n\nЧто нужно делать: {command_message}", self.system_prompt)
+        response = self.model.get_response(messages_history)
 
-        if "messages_history" not in context["user_data"]:
-            context["user_data"]["messages_history"] = []
-        messages_history = context["user_data"]["messages_history"]
-        messages_history.append(f"[BOT]: {response}")
+        # if "messages_history" not in context["user_data"]:
+        #     context["user_data"]["messages_history"] = []
+        # messages_history = context["user_data"]["messages_history"]
+        messages_history.append(response)
 
-        print(pred_info)
-
-        await chat.send_message_to_query(response)
+        await chat.send_message_to_query(response["content"])
 
         return chat.move_next(context, self.chatting_state)
