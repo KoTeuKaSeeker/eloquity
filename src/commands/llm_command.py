@@ -8,32 +8,36 @@ from src.chat_api.chat.chat_interface import ChatInterface
 
 class LLMCommand(CommandInterface):
     model: LLMInterface
+    system_prompt: str
 
     def __init__(self, model: LLMInterface, filter_factory: MessageFilterFactoryInterface):
         self.model = model
         self.filter_factory = filter_factory
         self.chatting_state = "llm_command.chatting_state"
+        self.system_prompt = ""
     
     async def handle_message_by_model(self, message: dict, context: dict, chat: ChatInterface):
         text = message["text"]
         
         if "messages_history" not in context["user_data"]:
-            context["user_data"]["messages_history"] = []
-        messages_history = context["user_data"]["messages_history"]
+            context["user_data"]["messages_history"] = [{"role": "system", "content": self.system_prompt}]
+        messages_history: List[dict] = context["user_data"]["messages_history"]
 
-        messages_history.append(f"[USER]: {text}")
+        user_message = {"role": "user", "content": text}
 
-        if "model_context" not in context["user_data"]:
-            context["user_data"]["model_context"] = ""
-        model_context = context["user_data"]["model_context"]
+        messages_history.append(user_message)
 
-        dialog = "\n".join(messages_history)
-        content = f"Контекстная информация:\n{model_context}\n\nТы ведёшь диалог с пользователем [USER] от имени [BOT]. Диалог может быть пустым, может содержать вопросы от пользователя - просто веди с ним беседу. Вот диалог:\n{dialog}\n\n Твой ответ:\n[BOT]: "
+        # if "model_context" not in context["user_data"]:
+        #     context["user_data"]["model_context"] = ""
+        # model_context = context["user_data"]["model_context"]
 
-        model_response = self.model.get_response(content)
-        messages_history.append(f"[BOT]: {model_response}")
+        # dialog = "\n".join(messages_history)
+        # content = f"Контекстная информация:\n{model_context}\n\nТы ведёшь диалог с пользователем [USER] от имени [BOT]. Диалог может быть пустым, может содержать вопросы от пользователя - просто веди с ним беседу. Вот диалог:\n{dialog}\n\n Твой ответ:\n[BOT]: "
 
-        await chat.send_message_to_query(model_response)        
+        model_response = self.model.get_response(messages_history)
+        messages_history.append(model_response)
+
+        await chat.send_message_to_query(model_response["content"])        
         return chat.stay_on_state(context)
 
     async def cancel_command(self, message: dict, context: dict, chat: ChatInterface):
