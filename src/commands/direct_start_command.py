@@ -51,7 +51,7 @@ class DirectStartCommand(CommandInterface):
 
         await chat.send_message_to_query(f"🔖 Вы выбрали бота {model_id + 1}. {model_name}. Выполните команду /start для продолжения работы с ботом.\n🔎 Если вы хотите поменять бота, выполните команду /change_bot.")
 
-        return chat.move_back(context)
+        return chat.move_next(context, "entry_point")
 
     async def change_bot_command(self, message: dict, context: dict, chat: ChatInterface):
         return await self.select_bot_message(context, chat)
@@ -66,11 +66,13 @@ class DirectStartCommand(CommandInterface):
         return {
             "entry_point": [
                 MessageHandler(self.filter_factory.create_filter("command", dict(command="start")), self.handle_command),
-                MessageHandler(self.filter_factory.create_filter("command", dict(command="change_bot")), self.change_bot_command),
                 MessageHandler(self.filter_factory.create_filter("all"), self.message_to_write_start)
             ],
             "select_bot_state": [
                 MessageHandler(self.filter_factory.create_filter("regex", dict(pattern=r"\d+")), self.select_bot_command),
                 MessageHandler(self.filter_factory.create_filter("all"), self.wrong_select_bot_text)
+            ],
+            "global_state_before": [
+                MessageHandler(self.filter_factory.create_filter("command", dict(command="change_bot")), self.change_bot_command),    
             ]
         }

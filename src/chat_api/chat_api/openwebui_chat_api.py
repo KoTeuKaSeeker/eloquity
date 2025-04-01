@@ -97,7 +97,11 @@ class OpenwebuiChatApi():
             self.user_active_states[data_key] = "entry_point"
 
         active_state = self.user_active_states[data_key]
-        handlers = self.handler_states[active_state]
+
+        state_handlers = self.handler_states[active_state]
+        before_handlers = self.handler_states["global_state_before"] if "global_state_before" in self.handler_states else []
+        after_handlers = self.handler_states["global_state_after"] if "global_state_after" in self.handler_states else []
+        handlers = before_handlers + state_handlers + after_handlers
         
         filtered_handler = self.filter_handlers(handlers, message)
         new_state = active_state

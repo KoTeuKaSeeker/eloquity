@@ -66,15 +66,22 @@ class TelegramChatApi(ChatApiInterface):
     def set_handler_states(self, handler_states: Dict[str, List[MessageHandler]]):
         clear_handler_states = handler_states.copy()
         entry_points = []
-        if "entry_point"in clear_handler_states:
+        global_states_before = clear_handler_states["global_state_before"] if "global_state_before" in clear_handler_states else []
+        global_states_after = clear_handler_states["global_state_after"] if "global_state_after" in clear_handler_states else []
+        if "entry_point" in clear_handler_states:
             entry_points = clear_handler_states["entry_point"]    
             del clear_handler_states["entry_point"]
         
         entry_point_telegram_handlers = [telegram.ext.MessageHandler(self._get_telegram_filter(message_handler), self._get_telegram_handler_function(message_handler)) for message_handler in entry_points]
+        global_states_before_handlers = [telegram.ext.MessageHandler(self._get_telegram_filter(message_handler), self._get_telegram_handler_function(message_handler)) for message_handler in global_states_before]
+        global_states_after_handlers = [telegram.ext.MessageHandler(self._get_telegram_filter(message_handler), self._get_telegram_handler_function(message_handler)) for message_handler in global_states_after]
+
+        entry_point_telegram_handlers = global_states_before_handlers + entry_point_telegram_handlers + global_states_after_handlers
         
         clear_telegram_handler_states = {}
         for state, message_handlers in clear_handler_states.items():
-            clear_telegram_handler_states[state] = [telegram.ext.MessageHandler(self._get_telegram_filter(message_handler), self._get_telegram_handler_function(message_handler)) for message_handler in message_handlers]
+            state_handlers = [telegram.ext.MessageHandler(self._get_telegram_filter(message_handler), self._get_telegram_handler_function(message_handler)) for message_handler in message_handlers]
+            clear_telegram_handler_states[state] = global_states_before_handlers + state_handlers + global_states_after_handlers
 
         conversation_handler = ConversationHandler(
             entry_points=entry_point_telegram_handlers,

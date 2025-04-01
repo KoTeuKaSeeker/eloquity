@@ -59,8 +59,10 @@ class ChatInterface(ABC):
         context["user_data"]["state"] = move_to_state
         return move_to_state
 
-    def move_back(self, context: dict):
+    def move_back(self, context: dict, count_steps: int = 1):
         self.__init_states(context)
+        queue_len = len(context["user_data"]["state_stack"])
+        context["user_data"]["state_stack"] = context["user_data"]["state_stack"][:queue_len - count_steps + 1]
         prev_state = context["user_data"]["state_stack"].pop()
         context["user_data"]['state'] = prev_state
         return prev_state

@@ -259,7 +259,6 @@ if __name__ == "__main__":
     conversation_states_manager = container.conversation_states_manager()
     for command in container.commands():
         conversation_states_manager.add_conversation_states(command.get_conversation_states())
-        conversation_states_manager.add_entry_points(command.get_entry_points())
 
     states = conversation_states_manager.create_conversation_states()
 
