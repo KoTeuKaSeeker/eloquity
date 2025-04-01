@@ -11,5 +11,9 @@ class HelpCommand(CommandInterface):
     async def handle_command(self, message: dict, context: dict, chat: ChatInterface):
         await chat.send_message_to_query("This is a help command!")
 
-    def get_entry_points(self) -> List[MessageHandler]:
-        return [MessageHandler(self.filter_factory.create_filter("command", dict(command="help")), self.handle_command)]
+    def get_conversation_states(self) -> Dict[str, MessageHandler]:
+        return {
+            "entry_point": [
+                MessageHandler(self.filter_factory.create_filter("command", dict(command="help")), self.handle_command)
+            ]
+        }

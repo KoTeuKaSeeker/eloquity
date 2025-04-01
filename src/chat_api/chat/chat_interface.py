@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, List
 from abc import ABC, abstractmethod
 import asyncio
 
@@ -18,6 +18,7 @@ class ChatInterface(ABC):
             С помощью этой функции можно произвольно отправлять сообщеине другим хэндлерам, и, в дальнейшем, переходить на них.
         """
         pass
+
 
     @abstractmethod
     def get_entry_point_state(self) -> Any:
@@ -46,17 +47,22 @@ class ChatInterface(ABC):
             context["user_data"]["state"] = self.get_entry_point_state()
 
 
-    def move_next(self, context: dict, move_to: str, prev_state: str):
-        move_to_state = self.get_entry_point_state() if move_to == "entry_point" else move_to
-        prev = self.get_entry_point_state() if prev_state == "entry_point" else prev_state
-
+    def move_next(self, context: dict, move_to: str, prev_state: str = None):
         self.__init_states(context)
+        move_to_state = self.get_entry_point_state() if move_to == "entry_point" else move_to
+        
+        prev = context["user_data"]["state"]
+        if prev_state is not None:
+            prev = self.get_entry_point_state() if prev_state == "entry_point" else prev_state
+
         context["user_data"]["state_stack"].append(prev)
         context["user_data"]["state"] = move_to_state
         return move_to_state
 
-    def move_back(self, context: dict):
+    def move_back(self, context: dict, count_steps: int = 1):
         self.__init_states(context)
+        queue_len = len(context["user_data"]["state_stack"])
+        context["user_data"]["state_stack"] = context["user_data"]["state_stack"][:queue_len - count_steps + 1]
         prev_state = context["user_data"]["state_stack"].pop()
         context["user_data"]['state'] = prev_state
         return prev_state
