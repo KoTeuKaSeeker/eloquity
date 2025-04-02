@@ -70,7 +70,7 @@ class TranscribeAudioCommand(CommandInterface):
             await chat.send_file_to_query(transcription_path)
 
     async def format_message(self, message: dict, context: dict, chat: ChatInterface):
-            speaker_to_user = context["user_data"]["speaker_to_user"]
+            speaker_to_user = context["chat_data"]["speaker_to_user"]
 
             employee_header = "🧑‍💻 Участники беседы, которые являются членами компании:"
             company_speakers_list = ""
@@ -100,7 +100,7 @@ class TranscribeAudioCommand(CommandInterface):
     
         json_log = dict()
 
-        audio_path = await message["audio_container"].get_file_path() if "audio_container" in message else context["user_data"]["audio_path"]
+        audio_path = await message["audio_container"].get_file_path() if "audio_container" in message else context["chat_data"]["audio_path"]
         if audio_path is None:
             return chat.move_back(context)
         
@@ -114,7 +114,7 @@ class TranscribeAudioCommand(CommandInterface):
 
         try:
             
-            preloaded_names = context["user_data"]["preloaded_names"] if "preloaded_names" in context["user_data"] else []
+            preloaded_names = context["chat_data"]["preloaded_names"] if "preloaded_names" in context["chat_data"] else []
             if audio_path.endswith(".txt"):
                 with open(audio_path, "r", encoding="utf-8") as file:
                     conversation = file.read()
@@ -123,14 +123,14 @@ class TranscribeAudioCommand(CommandInterface):
             assignees = self.task_extractor.eloquity.generate_assignees(conversation, json_log, preloaded_names)
             speaker_to_user = self.task_extractor.eloquity.correct_assignees_with_bitirx(assignees)
 
-            context["user_data"]["preloaded_names"] = []
+            context["chat_data"]["preloaded_names"] = []
 
-            context["user_data"]["assignees"] = assignees
-            context["user_data"]["speaker_to_user"] = speaker_to_user
-            context["user_data"]["json_log"] = json_log
-            context["user_data"]["request_log_dir"] = request_log_dir
-            context["user_data"]["request_log_path"] = request_log_path
-            context["user_data"]["request_id"] = request_id
+            context["chat_data"]["assignees"] = assignees
+            context["chat_data"]["speaker_to_user"] = speaker_to_user
+            context["chat_data"]["json_log"] = json_log
+            context["chat_data"]["request_log_dir"] = request_log_dir
+            context["chat_data"]["request_log_path"] = request_log_path
+            context["chat_data"]["request_id"] = request_id
 
             await self.format_message(message, context, chat)
 
@@ -147,11 +147,11 @@ class TranscribeAudioCommand(CommandInterface):
     async def extract_assignee_and_generate_docx_command(self, message: dict, context: dict, chat: ChatInterface):
         await chat.send_message_to_query("🔃 Идёт извлечение задач из беседы...")
 
-        assignees = context["user_data"]["assignees"]
-        json_log = context["user_data"]["json_log"]
-        request_log_dir = context["user_data"]["request_log_dir"]
-        request_log_path = context["user_data"]["request_log_path"]
-        request_id = context["user_data"]["request_id"]
+        assignees = context["chat_data"]["assignees"]
+        json_log = context["chat_data"]["json_log"]
+        request_log_dir = context["chat_data"]["request_log_dir"]
+        request_log_path = context["chat_data"]["request_log_path"]
+        request_id = context["chat_data"]["request_id"]
 
         doc = self.task_extractor.eloquity.get_docx_from_assignees(assignees, self.task_extractor.docx_template_path)
 
@@ -166,8 +166,8 @@ class TranscribeAudioCommand(CommandInterface):
         await self.print_end_message(message, context, chat)
 
     async def correct_speakers(self, message: dict, context: dict, chat: ChatInterface) -> str:
-        assignees: List[Assignee] = context["user_data"]["assignees"]
-        speaker_to_user = context["user_data"]["speaker_to_user"]
+        assignees: List[Assignee] = context["chat_data"]["assignees"]
+        speaker_to_user = context["chat_data"]["speaker_to_user"]
 
         text = message["text"]
         matches: List[str] = re.findall(r"^\d+.\s*\S+\s+\S+\s*(?:\[сотрудник\])?\s*$", text, re.DOTALL | re.MULTILINE)
@@ -232,8 +232,8 @@ class TranscribeAudioCommand(CommandInterface):
 
 
     async def continue_command(self, message: dict, context: dict, chat: ChatInterface) -> str:
-        assignees = context["user_data"]["assignees"]
-        speaker_to_user = context["user_data"]["speaker_to_user"]
+        assignees = context["chat_data"]["assignees"]
+        speaker_to_user = context["chat_data"]["speaker_to_user"]
         self.task_extractor.eloquity.add_assignee_to_bitrix(assignees, speaker_to_user)
 
         await self.extract_assignee_and_generate_docx_command(message, context, chat)

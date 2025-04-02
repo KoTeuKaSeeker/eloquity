@@ -68,7 +68,7 @@ class GoogleMeetConnectCommand(CommandInterface):
             return chat.move_back(context)
 
         member_names = free_bot.get_memeber_names(open_members_menu_time=60)[1:]
-        context["user_data"]["preloaded_names"] = member_names
+        context["chat_data"]["preloaded_names"] = member_names
 
         await self.print_okay_message(member_names, chat)
         await self.after_handling_meet(free_bot, message, context, chat)

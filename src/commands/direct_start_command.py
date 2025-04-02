@@ -19,8 +19,8 @@ class DirectStartCommand(CommandInterface):
         return chat.move_next(context, "select_bot_state")
 
     async def handle_command(self, message: dict, context: dict, chat: ChatInterface):
-        if "model_name" in context["user_data"]:
-            model_name = context["user_data"]["model_name"]
+        if "model_name" in context["chat_data"]:
+            model_name = context["chat_data"]["model_name"]
             await chat.send_message_to_query(f"Привет 👋. Бот {model_name} готов к взаимодействию 😉!")
             
             state = self.direction_states[model_name]
@@ -30,8 +30,8 @@ class DirectStartCommand(CommandInterface):
     
     async def message_to_write_start(self, message: dict, context: dict, chat: ChatInterface):
         model_name = None
-        if "model_name" in context["user_data"]: 
-            model_name = context["user_data"]["model_name"]
+        if "model_name" in context["chat_data"]: 
+            model_name = context["chat_data"]["model_name"]
             await chat.send_message_to_query(f"⏮️ Вы сейчас используйте бота {model_name}. Чтобы продолжить работу с {model_name}, выполните команду /start")
             return chat.stay_on_state(context)
         else:
@@ -47,7 +47,7 @@ class DirectStartCommand(CommandInterface):
             return chat.stay_on_state(context)
 
         model_name = list(self.direction_states.keys())[model_id]
-        context["user_data"]["model_name"] = model_name
+        context["chat_data"]["model_name"] = model_name
 
         await chat.send_message_to_query(f"🔖 Вы выбрали бота {model_id + 1}. {model_name}. Выполните команду /start для продолжения работы с ботом.\n🔎 Если вы хотите поменять бота, выполните команду /change_bot.")
 

@@ -5,7 +5,6 @@ from src.AI.llm.llm_interface import LLMInterface
 from src.chat_api.message_filters.interfaces.message_filter_factory_interface import MessageFilterFactoryInterface
 from src.chat_api.chat.chat_interface import ChatInterface
 
-
 class LLMCommand(CommandInterface):
     model: LLMInterface
     system_prompt: str
@@ -19,20 +18,13 @@ class LLMCommand(CommandInterface):
     async def handle_message_by_model(self, message: dict, context: dict, chat: ChatInterface):
         text = message["text"]
         
-        if "messages_history" not in context["user_data"]:
-            context["user_data"]["messages_history"] = [{"role": "system", "content": self.system_prompt}]
-        messages_history: List[dict] = context["user_data"]["messages_history"]
+        if "messages_history" not in context["chat_data"]:
+            context["chat_data"]["messages_history"] = [{"role": "system", "content": self.system_prompt}]
+        messages_history: List[dict] = context["chat_data"]["messages_history"]
 
         user_message = {"role": "user", "content": text}
 
         messages_history.append(user_message)
-
-        # if "model_context" not in context["user_data"]:
-        #     context["user_data"]["model_context"] = ""
-        # model_context = context["user_data"]["model_context"]
-
-        # dialog = "\n".join(messages_history)
-        # content = f"Контекстная информация:\n{model_context}\n\nТы ведёшь диалог с пользователем [USER] от имени [BOT]. Диалог может быть пустым, может содержать вопросы от пользователя - просто веди с ним беседу. Вот диалог:\n{dialog}\n\n Твой ответ:\n[BOT]: "
 
         model_response = self.model.get_response(messages_history)
         messages_history.append(model_response)

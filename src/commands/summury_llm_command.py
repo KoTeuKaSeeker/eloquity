@@ -12,9 +12,9 @@ class SummuryLLMCommand(TranscibeLLMCommand):
         self.chatting_state = "summury_llm_command.chatting_state"
 
     async def after_transcribe_message(self, message: dict, context: dict, chat: ChatInterface):
-        if "model_context" not in context["user_data"]:
-            context["user_data"]["model_context"] = ""
-        transcription = context["user_data"]["model_context"]
+        if "model_context" not in context["chat_data"]:
+            context["chat_data"]["model_context"] = ""
+        transcription = context["chat_data"]["model_context"]
         response = self.model.get_response(f"Сделай краткое содержание следующей беседы (она может быть неинформативна или вообще пустой, если так - тогда просто так и опиши её):\n{transcription}")
 
         await chat.send_message_to_query("✒️ Краткое содержание беседы из аудиозаписи:")

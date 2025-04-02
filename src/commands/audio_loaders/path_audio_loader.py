@@ -12,4 +12,4 @@ class PathAudioLoader(AudioLoaderInterface):
         self.audio_path_key = audio_path_key
 
     async def load_audio(self, message: dict, context: dict, chat: ChatInterface, json_log: dict = None, request_log_dir: str = "", request_id: int = -1) -> str:
-        return context["user_data"][self.audio_path_key]
+        return context["chat_data"][self.audio_path_key]

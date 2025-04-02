@@ -74,6 +74,7 @@ OBS_PASSWORD = "jXy9RT0qcKs93U83"
 OBS_RECORDING_DIRECTORY = "C:/Users/Email.LIT/Videos/"
 AUDIO_EXTENSION_PATH = "chrome_recorder_extension/"
 INSTANCE_ID_SCRIPT_PATH = "js_code/get_instance_id_script.js"
+FORMATS_FORLDER_PATH = "standart_report_formats/"
 MILVIS_HOST = "localhost"
 MILVIS_PORT = "19530"
 OPEN_WEB_UI_HOST = "localhost"
@@ -129,7 +130,7 @@ def load_commands(
 
     commands.append(DirectStartCommand(filter_factory, {"summury_assistant": "summury_llm_command", "hr_assistant": "hr_llm_command"}))
     commands.append(SummuryLLMCommand(llm_model, filter_factory, transcriber, AUDIO_DIR, entry_point_state="summury_llm_command"))
-    commands.append(HrLLMCommand(llm_model, filter_factory, transcriber, AUDIO_DIR, entry_point_state="hr_llm_command"))
+    commands.append(HrLLMCommand(llm_model, filter_factory, transcriber, AUDIO_DIR, entry_point_state="hr_llm_command", formats_folder_path=FORMATS_FORLDER_PATH))
 
     return commands
 

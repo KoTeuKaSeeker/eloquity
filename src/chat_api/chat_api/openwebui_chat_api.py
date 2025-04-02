@@ -18,6 +18,7 @@ import pytz
 class OpenwebuiChatApi():
     openwebui_coordinator_url: str
     handler_states: Dict[str, List[MessageHandler]]
+    chat_data_dicts: Dict[int, dict]
     user_data_dicts: Dict[int, dict]
     user_active_states: Dict[str, str]
     user_active_task: Dict[str, dict]
@@ -26,6 +27,7 @@ class OpenwebuiChatApi():
     def __init__(self, openwebui_coordinator_url: str, temp_path: str):
         self.openwebui_coordinator_url = openwebui_coordinator_url
         self.handler_states = {}
+        self.chat_data_dicts = {}
         self.user_data_dicts = {}
         self.user_active_states = {}
         self.user_active_task = {}
@@ -66,10 +68,12 @@ class OpenwebuiChatApi():
         context["user_id"] = task['user_id']
         context["chat_id"] = task['chat_id']
         
-        if data_key not in self.user_data_dicts:
-            self.user_data_dicts[data_key] = {}
-        context["user_data"] = self.user_data_dicts[data_key]
-        context["user_data"]["model_name"] = task['model_name']
+        if data_key not in self.chat_data_dicts: self.chat_data_dicts[data_key] = {}
+        if task['user_id'] not in self.user_data_dicts: self.user_data_dicts[task['user_id']] = {} 
+        
+        context["user_data"] = self.user_data_dicts[task['user_id']]
+        context["chat_data"] = self.chat_data_dicts[data_key]
+        context["chat_data"]["model_name"] = task['model_name']
 
         return context
             

@@ -41,33 +41,33 @@ class ChatInterface(ABC):
         return new_state
 
     def __init_states(self, context: dict):
-        if "state_stack" not in context["user_data"] or len(context["user_data"]["state_stack"]) == 0:
-            context["user_data"]["state_stack"] = [self.get_entry_point_state()]
-        if "state" not in context["user_data"]:
-            context["user_data"]["state"] = self.get_entry_point_state()
+        if "state_stack" not in context["chat_data"] or len(context["chat_data"]["state_stack"]) == 0:
+            context["chat_data"]["state_stack"] = [self.get_entry_point_state()]
+        if "state" not in context["chat_data"]:
+            context["chat_data"]["state"] = self.get_entry_point_state()
 
 
     def move_next(self, context: dict, move_to: str, prev_state: str = None):
         self.__init_states(context)
         move_to_state = self.get_entry_point_state() if move_to == "entry_point" else move_to
         
-        prev = context["user_data"]["state"]
+        prev = context["chat_data"]["state"]
         if prev_state is not None:
             prev = self.get_entry_point_state() if prev_state == "entry_point" else prev_state
 
-        context["user_data"]["state_stack"].append(prev)
-        context["user_data"]["state"] = move_to_state
+        context["chat_data"]["state_stack"].append(prev)
+        context["chat_data"]["state"] = move_to_state
         return move_to_state
 
     def move_back(self, context: dict, count_steps: int = 1):
         self.__init_states(context)
-        queue_len = len(context["user_data"]["state_stack"])
-        context["user_data"]["state_stack"] = context["user_data"]["state_stack"][:queue_len - count_steps + 1]
-        prev_state = context["user_data"]["state_stack"].pop()
-        context["user_data"]['state'] = prev_state
+        queue_len = len(context["chat_data"]["state_stack"])
+        context["chat_data"]["state_stack"] = context["chat_data"]["state_stack"][:queue_len - count_steps + 1]
+        prev_state = context["chat_data"]["state_stack"].pop()
+        context["chat_data"]['state'] = prev_state
         return prev_state
     
     def stay_on_state(self, context: dict):
         self.__init_states(context)
-        return context["user_data"]["state"]
+        return context["chat_data"]["state"]
         

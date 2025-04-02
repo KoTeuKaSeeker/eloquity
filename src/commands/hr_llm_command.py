@@ -5,12 +5,22 @@ from src.chat_api.message_filters.interfaces.message_filter_factory_interface im
 from src.transcribers.transcriber_interface import TranscriberInterface
 from src.chat_api.message_handler import MessageHandler
 from src.chat_api.chat.chat_interface import ChatInterface
+import re
+import yaml
+import os
 
 class HrLLMCommand(TranscibeLLMCommand):
-    def __init__(self, model: LLMInterface, filter_factory: MessageFilterFactoryInterface, transcriber: TranscriberInterface, temp_path: str, entry_point_state: str):
+    default_report_formats: Dict[str, str]
+
+    def __init__(self, model: LLMInterface, filter_factory: MessageFilterFactoryInterface, transcriber: TranscriberInterface, temp_path: str, entry_point_state: str, formats_folder_path: str):
         super().__init__(model, filter_factory, transcriber, temp_path, entry_point_state)
         self.chatting_state = "hr_llm_command.chatting_state"
-        self.system_prompt = """
+        self.waiting_format_state = "hr_llm_command.waiting_format_state"
+        self.waiting_format_name_state = "hr_llm_command.waiting_format_name_state"
+        self.waiting_format_text_state = "hr_llm_command.waiting_format_text_state"
+        self.waiting_remove_format_state = "hr_llm_command.waiting_remove_format_state"
+        self.default_report_formats = self.load_default_formats(formats_folder_path)
+        self.system_prompt =  """
 Ты — помощник по анализу транскрипций интервью. Тебя зовут Production HR Manatee. Твоя задача — на основе предоставленной транскрибации интервью составить отчет-оценку кандидата, следуя указанному пользователем формату. Ты должен точно и структурированно следовать тому, как пользователь запросил вывод.
 
 Интерфейс:
@@ -33,52 +43,164 @@ class HrLLMCommand(TranscibeLLMCommand):
 3. Продолжай обсуждение интервью с пользователем.
 """
 
-    async def after_transcribe_message(self, message: dict, context: dict, chat: ChatInterface):
-        if "model_context" not in context["user_data"]:
-            context["user_data"]["model_context"] = ""
+    def load_default_formats(self, formats_folder_path):
+        report_formats = {}
+        for format_filename in os.listdir(formats_folder_path):
+            format_file_path = os.path.join(formats_folder_path, format_filename)
+            
+            with open(format_file_path, "r", encoding="utf-8") as file:
+                data = yaml.safe_load(file)
+            
+            report_formats[data["format_name"]] = data["format_text"]
         
-        messages_history = context["user_data"]["messages_history"]
-        # transcription = context["user_data"]["model_context"]
-#         transcription = """Интервьюер: Добрый день, спасибо, что нашли время для интервью. Давайте начнем с того, чтобы вы рассказали немного о своем опыте в области машинного обучения.
+        return report_formats
+    
+    def get_report_formats(self, context: dict) -> dict:
+        if "report_formats" not in context["user_data"]:
+            context["user_data"]["report_formats"] = {}
+            context["user_data"]["report_formats"].update(self.default_report_formats)
+        
+        return context["user_data"]["report_formats"]
 
-# Кандидат: Добрый день, спасибо за возможность. Я работаю в области машинного обучения более 8 лет. Начинал с анализа данных, использовал Python и библиотеки вроде Pandas и Scikit-learn для предсказаний и классификаций. В последние несколько лет я фокусируюсь на нейронных сетях и разработке LLM моделей. Работал с такими технологиями, как TensorFlow и PyTorch, а также с крупными моделями, подобными GPT.
+    async def select_format_message(self, message: dict, context: dict, chat: ChatInterface):
+        report_formats = self.get_report_formats(context)
 
-# Интервьюер: Отлично. Можете рассказать подробнее о своем опыте работы с LLM моделями?
+        format_names = report_formats.keys()
+        format_list = "\n".join([f"{i+1}. {format_name}" for i, format_name in enumerate(format_names)])
+        if len(format_list) == 0:
+            format_list = "(список форматов пуст)"
 
-# Кандидат: Конечно. Моя основная роль заключалась в оптимизации и обучении моделей для обработки естественного языка. Мы использовали подходы глубокого обучения для создания моделей, которые могли бы отвечать на вопросы, генерировать текст и понимать контекст. Я участвовал в настройке архитектуры модели, а также в разработке алгоритмов для улучшения качества генерации текста и сокращения времени отклика.
+        await chat.send_message_to_query(f"⏮️ Теперь выберите номер формата, в соответствии с которым вы хотите получить отчёт:\n{format_list}\n\n 🔖 Если же вы хотите добавить новый формат отчёта, выполните команду /add_format. Если вы хотите удалить существующий формат, выплоните команду /remove_format")
 
-# Интервьюер: Это звучит очень интересно. Какие инструменты вы использовали для этого?
+        return chat.move_next(context, self.waiting_format_state)
 
-# Кандидат: Мы использовали TensorFlow для основной разработки, но для некоторых задач я также применял PyTorch, так как он дает больше гибкости в реализации кастомных слоев. Также я активно работал с CUDA для ускорения вычислений, а для обработки больших данных использовал библиотеки как Dask и Apache Spark. В качестве инструментов для деплоя моделей применяли Kubernetes и Docker.
+    async def after_transcribe_message(self, message: dict, context: dict, chat: ChatInterface):
+        return await self.select_format_message(message, context, chat)
 
-# Интервьюер: Какие из этих технологий вам наиболее интересны, и в чем вы чувствуете себя наиболее уверенно?
+    async def select_report_format(self, message: dict, context: dict, chat: ChatInterface):
+        report_formats = self.get_report_formats(context)
 
-# Кандидат: На данный момент мне особенно интересны крупномасштабные модели, такие как GPT, и я чувствую себя наиболее уверенно в области их оптимизации и масштабирования. Я люблю разбираться в тонкостях архитектуры моделей и улучшать их производительность. Однако также важно понимать, как правильно интегрировать модель в рабочие процессы, поэтому я уделяю много внимания DevOps практикам.
+        format_id = int(re.findall(r"\d+", message["text"])[0]) - 1
+        format_names = list(report_formats.keys())
 
-# Интервьюер: Понял. Как вы справляетесь с многозадачностью и управлением проектами в таких крупных командах?
+        if format_id < 0 or format_id >= len(format_names):
+            return await self.wrong_select_format_messsage(message, context, chat)
+        
+        format_name = format_names[format_id]
+        report_format = report_formats[format_name]
 
-# Кандидат: В моем опыте я часто работал в мультидисциплинарных командах. Для эффективной работы я всегда ставлю четкие приоритеты и использую гибкие методологии разработки, такие как Agile. Важно поддерживать постоянную связь с коллегами, чтобы все шаги были согласованы. Я также уделяю внимание автоматизации процессов, чтобы минимизировать рутинную работу.
+        await chat.send_message_to_query(f'✒️ Вы выбрали формат "{format_name}". Сейчас в сооветствии с ним будет составлен отчёт о кандидате 😉')
+        
+        if "messages_history" not in context["chat_data"]:
+            context["chat_data"]["messages_history"] = [{"role": "system", "content": self.system_prompt}]
+        
+        messages_history: list = context["chat_data"]["messages_history"]
+        messages_history.append({"role": "user", "content": f"Также вместе с транскрипцией известно о том, в каком именно формате необходимо составлять отчёт. Формат называется '{format_name}' и выглядит следующим образом:\n{report_format}"})
 
-# Интервьюер: Звучит, как хороший подход. Что вы думаете о будущих тенденциях в области машинного обучения?
+        model_response = self.model.get_response(messages_history)
+        messages_history.append(model_response)
 
-# Кандидат: Я считаю, что LLM и модели на базе трансформеров будут продолжать развиваться, и все больше компаний начнут использовать их для решения конкретных задач. Также вижу большой потенциал в применении таких технологий, как reinforcement learning, для адаптивных систем. В будущем будут важны еще более эффективные алгоритмы и способы оптимизации моделей, чтобы делать их менее затратными с точки зрения вычислений и времени.
-
-# Интервьюер: Спасибо за подробный ответ. Мы продолжим анализировать кандидатов, и я свяжусь с вами после завершения интервью. Спасибо за ваше время.
-
-# Кандидат: Спасибо вам. Было приятно пообщаться."""
-
-        # pred_info = message['text'] if 'text' in message else "Нет"
-        # command_message = """
-        #     Спроси пользователя, чтобы с самого начала он ввёл формат отчёта. Если он не захочет ввести формат отчёта, тогда 
-        # """
-        # response = self.model.get_response(f"Транскрипция интервью: {transcription}\n\n Предварительная информация: \n\n{pred_info}\n\nЧто нужно делать: {command_message}", self.system_prompt)
-        response = self.model.get_response(messages_history)
-
-        # if "messages_history" not in context["user_data"]:
-        #     context["user_data"]["messages_history"] = []
-        # messages_history = context["user_data"]["messages_history"]
-        messages_history.append(response)
-
-        await chat.send_message_to_query(response["content"])
+        await chat.send_message_to_query(model_response["content"])
+        await chat.send_message_to_query("⏮️ Сейчас можете продолжить беседу с ботом - он имеет транскрибацию и отчёт в памяти.")
 
         return chat.move_next(context, self.chatting_state)
+
+    async def response_format_name_command(self, message: dict, context: dict, chat: ChatInterface):
+        await chat.send_message_to_query("✒️ Напишите название формата, который вы хотите добавить.")
+        return chat.move_next(context, self.waiting_format_name_state)
+    
+    async def response_format_text_command(self, message: dict, context: dict, chat: ChatInterface):
+        context["chat_data"]["format_name"] = message["text"]
+        await chat.send_message_to_query("📌 Теперь отправьте текст, который описывал бы формат. Этот текст будет посылаться напрямую в языковую модель, так что описание формата может быть произвольным - главное объяснить его доходчиво 🚀.")
+        return chat.move_next(context, self.waiting_format_text_state)
+
+    async def add_format_command(self, message: dict, context: dict, chat: ChatInterface):
+        format_name = context["chat_data"]["format_name"]
+        format_text = message["text"]
+
+        report_formats = self.get_report_formats(context)
+        
+        report_formats[format_name] = format_text
+        await chat.send_message_to_query("✅ Новый формат был успешно добавлен!")
+        return await self.select_format_message(message, context, chat)
+    
+    async def wrong_format_text_message(self, message: dict, context: dict, chat: ChatInterface):
+        await chat.send_message_to_query("💀 Вы некорректно ввели формат отчёта. Введите формат отчёта ещё раз.")
+        return chat.stay_on_state(context)
+    
+    async def wrong_format_name_message(self, message: dict, context: dict, chat: ChatInterface):
+        await chat.send_message_to_query("⏮️ Вы отправили некорректное название формата. Напишите название формата отчёта.")
+        return chat.stay_on_state(context)
+
+    async def wrong_select_format_messsage(self, message: dict, context: dict, chat: ChatInterface):
+        format_names = self.get_report_formats(context).keys()
+        format_list = "\n".join([f"{i+1}. {format_name}" for i, format_name in enumerate(format_names)])
+        if len(format_list) == 0:
+            format_list = "(список форматов пуст)"
+        await chat.send_message_to_query(f"🪡 Вы отправили некорректный номер формата. Выберите желаемый формат для составления отчёта из следующего списка:\n{format_list}")
+        return chat.move_next(context, self.waiting_format_state)
+
+    async def response_remove_format_name_command(self, message: dict, context: dict, chat: ChatInterface):
+        report_formats: dict = self.get_report_formats(context)
+        removeable_report_format_keys = report_formats.keys() - self.default_report_formats.keys()
+        format_list = "\n".join([f"{i+1}. {format_name}" for i, format_name in enumerate(removeable_report_format_keys)])
+        if len(removeable_report_format_keys) == 0:
+            format_list = "(нет форматов, которые можно удалить)"
+        
+        await chat.send_message_to_query(f"💀 Введите номер формата, который вы хотите удалить:\n{format_list}\n\n🔎 Можете заметить, что здесь список форматов неполный, так как стандартные форматы удалить нельзя. Если вы хотите отменить удаление формата, выполните команду /cancel")
+        return chat.move_next(context, self.waiting_remove_format_state)
+    
+    async def wrong_select_format_to_remove_messsage(self, message: dict, context: dict, chat: ChatInterface):
+        report_formats: dict = self.get_report_formats(context)
+        removeable_report_format_keys = report_formats.keys() - self.default_report_formats.keys()
+        format_list = "\n".join([f"{i+1}. {format_name}" for i, format_name in enumerate(removeable_report_format_keys)])
+        if len(removeable_report_format_keys) == 0:
+            format_list = "(нет форматов, которые можно удалить)"
+        await chat.send_message_to_query(f"⚙️ Вы отправили некорректный номер формата. Введите номер формата, который вы хотите удалить:\n{format_list}")
+        return chat.stay_on_state(context)
+    
+    async def select_report_format_to_remove(self, message: dict, context: dict, chat: ChatInterface):
+        report_formats: dict = self.get_report_formats(context)
+        removeable_report_format_keys = report_formats.keys() - self.default_report_formats.keys()
+
+        format_id = int(re.findall(r"\d+", message["text"])[0]) - 1
+        format_names = list(removeable_report_format_keys)
+
+        if format_id < 0 or format_id >= len(format_names):
+            return await self.wrong_select_format_to_remove_messsage(message, context, chat)
+        
+        format_name = format_names[format_id]
+        del report_formats[format_name]
+
+        await chat.send_message_to_query(f'Формат "{format_name}" был успешно удалён ✅')
+        return await self.select_format_message(message, context, chat)
+    
+    async def cancel_remove_format_command(self, message: dict, context: dict, chat: ChatInterface):
+        await chat.send_message_to_query(f'🔖 Удаление формата отменено.')
+        return await self.select_format_message(message, context, chat)
+
+    def get_conversation_states(self) -> Dict[str, MessageHandler]:
+        states = super().get_conversation_states()
+        states.update({
+            self.waiting_format_state: [
+                MessageHandler(self.filter_factory.create_filter("command", dict(command="add_format")), self.response_format_name_command),
+                MessageHandler(self.filter_factory.create_filter("command", dict(command="remove_format")), self.response_remove_format_name_command),
+                MessageHandler(self.filter_factory.create_filter("regex", dict(pattern=r"\d+")), self.select_report_format),
+                MessageHandler(self.filter_factory.create_filter("all"), self.wrong_select_format_messsage)
+            ],
+            self.waiting_format_name_state: [
+                MessageHandler(self.filter_factory.create_filter("text"), self.response_format_text_command),
+                MessageHandler(self.filter_factory.create_filter("all"), self.wrong_format_name_message)
+            ],
+            self.waiting_format_text_state: [
+                MessageHandler(self.filter_factory.create_filter("text"), self.add_format_command),
+                MessageHandler(self.filter_factory.create_filter("all"), self.wrong_format_text_message)
+            ],
+            self.waiting_remove_format_state: [
+                MessageHandler(self.filter_factory.create_filter("regex", dict(pattern=r"\d+")), self.select_report_format_to_remove),
+                MessageHandler(self.filter_factory.create_filter("command", dict(command="cancel")), self.cancel_remove_format_command),
+                MessageHandler(self.filter_factory.create_filter("all"), self.wrong_select_format_to_remove_messsage)
+            ]
+        })
+
+        return states

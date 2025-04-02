@@ -67,7 +67,7 @@ class GoogleMeetRecordingAudioCommand(GoogleMeetConnectCommand):
     async def after_handling_meet(self, free_bot, message: dict, context: dict, chat: ChatInterface):
         audio_name = str(uuid.uuid4())
         audio_path = os.path.join(self.tmp_path, audio_name + ".wav")
-        context["user_data"]["audio_path"] = audio_path
+        context["chat_data"]["audio_path"] = audio_path
 
         asyncio.create_task(self.handle_meet(free_bot, audio_path))
 
@@ -82,9 +82,9 @@ class GoogleMeetRecordingAudioCommand(GoogleMeetConnectCommand):
         if context["user_id"] in self.user_id_to_bot:
             self.user_id_to_bot[context["user_id"]].is_recording = False
 
-        while not os.path.exists(context["user_data"]["audio_path"]): await asyncio.sleep(1)
+        while not os.path.exists(context["chat_data"]["audio_path"]): await asyncio.sleep(1)
 
-        message = {"audio_container": PathFileContainer(context["user_data"]["audio_path"])}
+        message = {"audio_container": PathFileContainer(context["chat_data"]["audio_path"])}
         # await chat.move_next_and_send_message_to_event_loop("message_transcribe_audio_with_preloaded_names_command", "entry_point", message, context, chat)
         return chat.move_next(context, "message_transcribe_audio_with_preloaded_names_command", "entry_point")
 

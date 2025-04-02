@@ -24,9 +24,9 @@ class TranscibeLLMCommand(LLMCommand):
     
     async def transcirbe_audio(self, message: dict, context: dict, chat: ChatInterface):
 
-        if "messages_history" not in context["user_data"]:
-            context["user_data"]["messages_history"] = [{"role": "system", "content": self.system_prompt}]
-        messages_history: List[dict] = context["user_data"]["messages_history"]
+        if "messages_history" not in context["chat_data"]:
+            context["chat_data"]["messages_history"] = [{"role": "system", "content": self.system_prompt}]
+        messages_history: List[dict] = context["chat_data"]["messages_history"]
 
         audio_container: FileContainerInterface = message["audio_container"]
         file_path = await audio_container.get_file_path()
@@ -70,7 +70,7 @@ class TranscibeLLMCommand(LLMCommand):
         await chat.send_message_to_query("🚀 Транскрибация успешно завершена:")
         await chat.send_file_to_query(transcription_path)
 
-        # context["user_data"]["model_context"] = transcription
+        # context["chat_data"]["model_context"] = transcription
 
         prompt = f"""
         Пользователь отправил транскрипцию интерьвью. Твоя задача сейчас - запомнить транскрипицию и сказать пользователю, 
@@ -85,7 +85,7 @@ class TranscibeLLMCommand(LLMCommand):
         user_message = {"role": "user", "content": prompt}
         
 
-        context["user_data"]["messages_history"].append(user_message)
+        context["chat_data"]["messages_history"].append(user_message)
 
         return await self.after_transcribe_message(message, context, chat)
     

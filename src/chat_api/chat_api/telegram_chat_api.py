@@ -49,6 +49,7 @@ class TelegramChatApi(ChatApiInterface):
             context = {}
             context["user_id"] = update.effective_user.id
             context["user_data"] = t_context.user_data
+            context["chat_data"] = t_context.chat_data
 
             chat = TelegramChat(update, t_context)
 
