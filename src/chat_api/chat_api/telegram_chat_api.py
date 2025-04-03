@@ -8,6 +8,7 @@ from src.format_handlers_manager import FormatHandlersManager
 from src.chat_api.message_handler import MessageHandler
 from src.chat_api.file_containers.telegram.telegram_file_container import TelegramFileContainer
 from src.chat_api.file_containers.path_file_container import PathFileContainer
+from src.drop_box_manager import DropBoxManager
 import asyncio
 
 class UniversalFilter(filters.MessageFilter):
@@ -27,16 +28,18 @@ class UniversalFilter(filters.MessageFilter):
 class TelegramChatApi(ChatApiInterface):
     app: Application
     format_handler: FormatHandlersManager
+    dropbox_manager: DropBoxManager
 
-    def __init__(self, token: str, audio_dir: str, video_dir: str, audio_extenstion: str):
+    def __init__(self, token: str, audio_dir: str, video_dir: str, audio_extenstion: str, dropbox_manager: DropBoxManager):
         self.app = Application.builder().token(token).build()
         self.format_handler = FormatHandlersManager(audio_dir, video_dir, audio_extenstion)
+        self.dropbox_manager = dropbox_manager
 
-    def get_message_dict(self, telegram_message: Message):
+    def get_message_dict(self, telegram_message: Message, context: dict = {}):
         message = {}
         if len(telegram_message.entities) > 0 and telegram_message.entities[0].type == "audio": message["audio_container"] = PathFileContainer(telegram_message["text"])
         elif telegram_message.text: message["text"] = telegram_message.text
-        else: message["audio_container"] = TelegramFileContainer(telegram_message, self.format_handler)
+        else: message["audio_container"] = TelegramFileContainer(context, telegram_message, self.format_handler, self.dropbox_manager)
 
         if telegram_message.forward_origin: message["forward_origin_date"] = telegram_message.forward_origin.date
         message["date"] = telegram_message.date
@@ -44,12 +47,12 @@ class TelegramChatApi(ChatApiInterface):
 
     def _get_telegram_handler_function(self, message_handler: MessageHandler):
         async def telegram_handler_function(update: Update, t_context: CallbackContext) -> str:
-            message = self.get_message_dict(update.message)
-
             context = {}
             context["user_id"] = update.effective_user.id
             context["user_data"] = t_context.user_data
             context["chat_data"] = t_context.chat_data
+
+            message = self.get_message_dict(update.message, context)
 
             chat = TelegramChat(update, t_context)
 

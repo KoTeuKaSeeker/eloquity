@@ -23,7 +23,8 @@ class RecognizedVideoFormatHandler(VideoFormatHandler):
             except BadRequest as e:
                 if e.message == "File is too big":
                     raise TooBigFileException()
-                raise UnknownErrorException()
+                else:
+                    raise UnknownErrorException()
             file_name = message.video.file_name or "video.mp4"
             video_ext = os.path.splitext(file_name)[1]
             video_path = os.path.join(self.video_dir, f"{message.video.file_id}{video_ext}")
