@@ -131,7 +131,7 @@ def load_commands(
     commands.append(DirectStartCommand(filter_factory, {"summury_assistant": "summury_llm_command", "hr_assistant": "hr_llm_command"}))
     commands.append(SummuryLLMCommand(llm_model, filter_factory, transcriber, AUDIO_DIR, entry_point_state="summury_llm_command"))
     commands.append(HrLLMCommand(llm_model, filter_factory, transcriber, AUDIO_DIR, entry_point_state="hr_llm_command", formats_folder_path=FORMATS_FORLDER_PATH))
-
+    
     return commands
 
 class ApplicationContainer(containers.DeclarativeContainer):
@@ -144,12 +144,23 @@ class ApplicationContainer(containers.DeclarativeContainer):
         api_key=config.deepgram_api_key,
     )
 
+    drop_box_manager = providers.Singleton(
+        DropBoxManager,
+        remote_dropbox_folder=providers.Object(DROPBOX_DIR),
+        audio_dir=providers.Object(AUDIO_DIR),
+        video_dir=providers.Object(VIDEO_DIR),
+        refresh_token=config.dropbox_refresh_token,
+        app_key=config.dropbox_app_key,
+        app_secret=config.dropbox_app_secret,
+    )
+
     telegram_chat_api = providers.Singleton(
         TelegramChatApi,
         token=config.telegram_bot_token, 
         audio_dir=providers.Object(AUDIO_DIR), 
         video_dir=providers.Object(VIDEO_DIR), 
-        audio_extenstion=providers.Object(".wav")
+        audio_extenstion=providers.Object(".wav"),
+        dropbox_manager=drop_box_manager
     )
 
     openwebui_chat_api = providers.Singleton(
@@ -171,16 +182,6 @@ class ApplicationContainer(containers.DeclarativeContainer):
         bitrix_manager=bitrix_manager,
         users_database=users_database,
         model_name=providers.Object("gpt-4o-mini"),
-    )
-
-    drop_box_manager = providers.Singleton(
-        DropBoxManager,
-        remote_dropbox_folder=providers.Object(DROPBOX_DIR),
-        audio_dir=providers.Object(AUDIO_DIR),
-        video_dir=providers.Object(VIDEO_DIR),
-        refresh_token=config.dropbox_refresh_token,
-        app_key=config.dropbox_app_key,
-        app_secret=config.dropbox_app_secret,
     )
 
     audio_recorder = providers.Singleton(
