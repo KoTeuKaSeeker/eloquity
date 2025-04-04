@@ -5,15 +5,20 @@ from src.chat_api.message_filters.interfaces.message_filter_factory_interface im
 from src.transcribers.transcriber_interface import TranscriberInterface
 from src.chat_api.message_handler import MessageHandler
 from src.chat_api.chat.chat_interface import ChatInterface
+from src.docs.document_generator_interface import DocumentGeneratorInterface
 import re
 import yaml
 import os
+import json
+import uuid
 
 class HrLLMCommand(TranscibeLLMCommand):
     default_report_formats: Dict[str, str]
+    report_document_generator: DocumentGeneratorInterface
 
-    def __init__(self, model: LLMInterface, filter_factory: MessageFilterFactoryInterface, transcriber: TranscriberInterface, temp_path: str, entry_point_state: str, formats_folder_path: str):
+    def __init__(self, model: LLMInterface, filter_factory: MessageFilterFactoryInterface, transcriber: TranscriberInterface, report_document_generator: DocumentGeneratorInterface, temp_path: str, entry_point_state: str, formats_folder_path: str):
         super().__init__(model, filter_factory, transcriber, temp_path, entry_point_state)
+        self.report_document_generator = report_document_generator
         self.chatting_state = "hr_llm_command.chatting_state"
         self.waiting_format_state = "hr_llm_command.waiting_format_state"
         self.waiting_format_name_state = "hr_llm_command.waiting_format_name_state"
@@ -77,6 +82,105 @@ class HrLLMCommand(TranscibeLLMCommand):
     async def after_transcribe_message(self, message: dict, context: dict, chat: ChatInterface):
         return await self.select_format_message(message, context, chat)
 
+    async def generate_report(self, message: dict, context: dict, chat: ChatInterface):
+        if "messages_history" not in context["chat_data"]:
+            context["chat_data"]["messages_history"] = [{"role": "system", "content": self.system_prompt}]
+        
+        format_name = context["chat_data"]["format_name"]
+        report_format = context["chat_data"]["report_format"]
+        
+        messages_history: list = context["chat_data"]["messages_history"]
+        messages_history.append({"role": "user", "content": f"Также вместе с транскрипцией известно о том, в каком именно формате необходимо составлять отчёт. Формат называется '{format_name}' и выглядит следующим образом:\n{report_format}"})
+
+        model_response = self.model.get_response(messages_history)
+        messages_history.append(model_response)
+
+        excel_message = """
+            Теперь необходимо сгенерировать этот же формат, только не текстом, а в json формате, который будет описывать таблицу следующим образом:
+            {
+                "columns": {
+                    "column_dict_0": {
+                        "width": 30,
+                        "column": [
+                            {"0": "cell_name_10", "border": true, "bold": true},
+                            {"1": "cell_name_11", "border": false, "bold": true},
+                            ...
+                            {"m": "cell_name_1m", "border": false, "bold": true},
+                        ]
+                    },
+                    "column_dict_1": {
+                        "width": 15,
+                        "column": [
+                            {"0": "cell_name_20", "border": false, "bold": false},
+                            {"1": "cell_name_21", "border": true, "bold": true},
+                            ...
+                            {"m": "cell_name_2m", "border": true, "bold": true},
+                        ]
+                    }
+                    ...
+                    "column_dict_n": {
+                        "width": 40,
+                        "column": [
+                            {"0": "cell_name_n0", "border": true, "bold": true},
+                            {"1": "cell_name_n1", "border": true, "bold": false},
+                            ...
+                            {"m": "cell_name_nm", "border": false, "bold": false},
+                        ]
+                    }
+                }
+
+                "row_data": {
+                    "0": {
+                        "height": 20
+                    },
+                    "2": {
+                        "height": 30
+                    },
+                    "10": {
+                        "height": 15
+                    }
+                }
+            }
+
+            Здесь названия колонок ты так и должен оставлять как column_dict_i, где i - номер колонки, а вот названия клеток заменять на то, 
+            что ты хочешь поместить в соотвествующую клетку таблицы. Также, как ты можешь заметить, у колонки есть такой параметр как width - с помощью
+            него ты можешь настраивать ширину колонки, чтобы большой текст мог поместиться в ячейках. Используй это, чтобы табличка выглядела красиво (хочу заметить, что в табличке используется перенос строк, 
+            поэтому тебе не обязательно расширять колонку так, чтобы всё влезло в виде одной строки. Даже красивее будет, если всё будет помещаться в виде нескольких строк. Вообщем, находи баланс).
+
+            Теперь по поводу того, как располагать данные. В первой колонке таблици должны находиться как бы заголовки. Сначала идёт заголовок топика, например "общая информация", а далее несколько заголовков, 
+            которые входят в этот топик, например "ФИО", "Дата собеседования", "Должность" и т.д. После того, как заголовки топика закончились, идут две пустые клетки, обозначающие конец топика и дальше заголовок нового топика, например "Технические навыки", далее опять
+            заголовки, которые входят в этот топик и опять две клетки пропущено и так повторяется до конца, пока все заголовки не будут расписаны. ВНИМАНИЕ: !!!Все заголовки должны быть выделены жирным шрифтом (параметр "bold": true у ячейки)!!!
+
+            Во второй колонке таблицы должны находиться значения, которые соответствуют заголовкам. Например, напротив заголовка "ФИО" должна находиться строчка с ФИО, напротив заголовка "Должность" должна располагаться должность кандидата и т.д. Ячейки во второй колонке,
+            которые находятся напротив заголовков-топиков (ещё раз напомню, что заголовки-топики - это заголовки, такие как "Общая информация", "Резюме и опыт", "Технические навыки" и т.д) должны содержать слово "Значение" и эта ячейка также должна иметь жирный шрифт.
+
+            Теперь по поводу границ/обводки. Границы должны быть включены у всех ячеек, в которых находятся заголовки (кроме пустых ячеек, разделяющих заголовки-топики) и во всех ячейках, в которых находятся значения заголовков (вторая колонка) - опять же, кроме тех пустых ячеек, которые 
+            разделяют заголовки-топики.
+
+            Также смотри, ниже самого словаря с табличкой, должен быть словарь "row_data", который описывает ширину некоторых из строк (можешь заметить, что совсем не обязательно всех. Если не указывать высоту строки, то она будет ставиться автоматически).
+
+            ВАЖНО:
+            1. Твоё ответ должен содержать чисто текст с json форматом, без каких-либо оборачивающих кавычек.
+            2. В ответе нельзя писать ничего кроме json формата, иначе программе не удасться его распарсить и вылетит ошибка (а это очень и очень плохо).
+        """
+        
+        messages_history.append({"role": "user", "content": excel_message})
+        excel_model_response = self.model.get_response(messages_history)
+        messages_history[-1] = excel_model_response # Заменяем просьбу пользователя на табличку бота
+
+        document_name = str(uuid.uuid4())
+        document_path = os.path.join(self.temp_path, document_name + ".xlsx")
+
+        table_data = json.loads(excel_model_response["content"])
+        self.report_document_generator.generate_document(table_data, document_path)
+
+        await chat.send_file_to_query(document_path)
+
+        await chat.send_message_to_query(model_response["content"])
+        await chat.send_message_to_query("⏮️ Сейчас можете продолжить беседу с ботом - он имеет транскрибацию и отчёт в памяти.")
+
+        return chat.move_next(context, self.chatting_state)
+
     async def select_report_format(self, message: dict, context: dict, chat: ChatInterface):
         report_formats = self.get_report_formats(context)
 
@@ -89,21 +193,13 @@ class HrLLMCommand(TranscibeLLMCommand):
         format_name = format_names[format_id]
         report_format = report_formats[format_name]
 
+        context["chat_data"]["format_name"] = format_name
+        context["chat_data"]["report_format"] = report_format
+
         await chat.send_message_to_query(f'✒️ Вы выбрали формат "{format_name}". Сейчас в сооветствии с ним будет составлен отчёт о кандидате 😉')
         
-        if "messages_history" not in context["chat_data"]:
-            context["chat_data"]["messages_history"] = [{"role": "system", "content": self.system_prompt}]
-        
-        messages_history: list = context["chat_data"]["messages_history"]
-        messages_history.append({"role": "user", "content": f"Также вместе с транскрипцией известно о том, в каком именно формате необходимо составлять отчёт. Формат называется '{format_name}' и выглядит следующим образом:\n{report_format}"})
+        return await self.generate_report(message, context, chat)
 
-        model_response = self.model.get_response(messages_history)
-        messages_history.append(model_response)
-
-        await chat.send_message_to_query(model_response["content"])
-        await chat.send_message_to_query("⏮️ Сейчас можете продолжить беседу с ботом - он имеет транскрибацию и отчёт в памяти.")
-
-        return chat.move_next(context, self.chatting_state)
 
     async def response_format_name_command(self, message: dict, context: dict, chat: ChatInterface):
         await chat.send_message_to_query("✒️ Напишите название формата, который вы хотите добавить.")

@@ -49,6 +49,8 @@ from src.chat_api.chat_api.openwebui_chat_api import OpenwebuiChatApi
 from src.commands.summury_llm_command import SummuryLLMCommand
 from src.commands.hr_llm_command import HrLLMCommand
 from src.commands.direct_start_command import DirectStartCommand
+from src.docs.document_generator_interface import DocumentGeneratorInterface
+from src.docs.excel_document_generator import ExcelDocumentGenerator
 import threading
 import asyncio
 import time
@@ -125,12 +127,13 @@ def init_logger():
 def load_commands(
         llm_model: LLMInterface, 
         filter_factory: MessageFilterFactoryInterface, 
-        transcriber: TranscriberInterface) -> List[CommandInterface]:
+        transcriber: TranscriberInterface,
+        report_document_generator: DocumentGeneratorInterface) -> List[CommandInterface]:
     commands = []
 
     commands.append(DirectStartCommand(filter_factory, {"summury_assistant": "summury_llm_command", "hr_assistant": "hr_llm_command"}))
     commands.append(SummuryLLMCommand(llm_model, filter_factory, transcriber, AUDIO_DIR, entry_point_state="summury_llm_command"))
-    commands.append(HrLLMCommand(llm_model, filter_factory, transcriber, AUDIO_DIR, entry_point_state="hr_llm_command", formats_folder_path=FORMATS_FORLDER_PATH))
+    commands.append(HrLLMCommand(llm_model, filter_factory, transcriber, report_document_generator, AUDIO_DIR, entry_point_state="hr_llm_command", formats_folder_path=FORMATS_FORLDER_PATH))
     
     return commands
 
@@ -223,11 +226,14 @@ class ApplicationContainer(containers.DeclarativeContainer):
         model_name=providers.Object("gpt-4o")
     )
 
+    report_document_generator = providers.Singleton(ExcelDocumentGenerator)
+
     commands = providers.Singleton(
         load_commands,
         llm_model=llm_model,
         filter_factory=filter_factory,
-        transcriber=audio_transcriber
+        transcriber=audio_transcriber,
+        report_document_generator=report_document_generator
     )
 
 def init_container() -> ApplicationContainer:

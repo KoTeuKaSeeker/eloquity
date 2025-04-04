@@ -18,7 +18,7 @@ class GptunnelModel(LLMInterface):
 
         data = {
             "model": self.model_name,
-            "max_tokens": 2000,
+            "max_tokens": 4000,
             "messages": messages
         }
 
