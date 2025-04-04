@@ -1,7 +1,8 @@
-from typing import Any, List
+from typing import Any, List, Dict
 from src.chat_api.chat.chat_interface import ChatInterface
 from telegram import Update, Message, Chat, MessageEntity, Audio, Voice, Video, Document, User, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext, ConversationHandler
+from src.chat_api.task_function import TaskFunction
 import datetime
 import asyncio
 
@@ -9,10 +10,15 @@ class TelegramChat(ChatInterface):
     update: Update
     context: CallbackContext
     max_message_length: int = 4096
+    chat_functions_stack: list
 
-    def __init__(self, update: Update, context: CallbackContext):
+    def __init__(self, update: Update, context: CallbackContext, chat_functions_stack: list):
         self.update = update
         self.context = context
+        self.chat_functions_stack = chat_functions_stack
+
+    def get_chat_functions_stack(self) -> Dict[Any, List[TaskFunction]]:
+        return self.chat_functions_stack
 
     async def send_message_to_query(self, message: str):
         if len(message) > self.max_message_length:

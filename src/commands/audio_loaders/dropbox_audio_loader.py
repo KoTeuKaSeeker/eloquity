@@ -13,7 +13,7 @@ class DropboxAudioLoader(AudioLoaderInterface):
 
     async def load_audio(self, message: dict, context: dict, chat: ChatInterface, json_log: dict = None, request_log_dir: str = "", request_id: int = -1) -> str:
         try:
-            audio_path = self.dropbox_manager.load_user_drop(context, chat)
+            audio_path = await self.dropbox_manager.load_user_drop(context, chat)
             return audio_path
         except DropboxIsEmptyException as e:
             await chat.send_message_to_query(e.open_dropbox_request(context, self.dropbox_manager))

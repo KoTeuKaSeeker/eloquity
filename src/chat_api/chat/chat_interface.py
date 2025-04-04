@@ -1,6 +1,8 @@
-from typing import Any, List
-from abc import ABC, abstractmethod
 import asyncio
+from abc import ABC, abstractmethod
+from typing import Any, List, Dict
+from src.chat_api.task_function import TaskFunction
+
 
 class ChatInterface(ABC):
     @abstractmethod
@@ -18,7 +20,10 @@ class ChatInterface(ABC):
             С помощью этой функции можно произвольно отправлять сообщеине другим хэндлерам, и, в дальнейшем, переходить на них.
         """
         pass
-
+    
+    @abstractmethod
+    def get_chat_functions_stack(self) -> Dict[Any, List[TaskFunction]]:
+        pass
 
     @abstractmethod
     def get_entry_point_state(self) -> Any:

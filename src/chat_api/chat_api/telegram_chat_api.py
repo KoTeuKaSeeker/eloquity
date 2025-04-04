@@ -1,5 +1,5 @@
 from telegram import Update, Message
-from typing import Dict, List
+from typing import Dict, List, Callable, Any
 from src.chat_api.chat_api.chat_api_interface import ChatApiInterface
 from telegram.ext import Application, filters, CallbackContext, ConversationHandler
 import telegram.ext
@@ -8,7 +8,9 @@ from src.format_handlers_manager import FormatHandlersManager
 from src.chat_api.message_handler import MessageHandler
 from src.chat_api.file_containers.telegram.telegram_file_container import TelegramFileContainer
 from src.chat_api.file_containers.path_file_container import PathFileContainer
+from src.chat_api.chat.chat_interface import ChatInterface
 from src.drop_box_manager import DropBoxManager
+from src.chat_api.task_function import TaskFunction
 import asyncio
 
 class UniversalFilter(filters.MessageFilter):
@@ -29,11 +31,13 @@ class TelegramChatApi(ChatApiInterface):
     app: Application
     format_handler: FormatHandlersManager
     dropbox_manager: DropBoxManager
+    chat_functions_stack: Dict[Any, List[TaskFunction]]
 
     def __init__(self, token: str, audio_dir: str, video_dir: str, audio_extenstion: str, dropbox_manager: DropBoxManager):
         self.app = Application.builder().token(token).build()
         self.format_handler = FormatHandlersManager(audio_dir, video_dir, audio_extenstion)
         self.dropbox_manager = dropbox_manager
+        self.chat_functions_stack = {}
 
     def get_message_dict(self, telegram_message: Message, context: dict = {}):
         message = {}
@@ -49,14 +53,20 @@ class TelegramChatApi(ChatApiInterface):
         async def telegram_handler_function(update: Update, t_context: CallbackContext) -> str:
             context = {}
             context["user_id"] = update.effective_user.id
+            context["chat_id"] = update.effective_chat.id
             context["user_data"] = t_context.user_data
             context["chat_data"] = t_context.chat_data
 
             message = self.get_message_dict(update.message, context)
 
-            chat = TelegramChat(update, t_context)
-
+            chat = TelegramChat(update, t_context, self.chat_functions_stack)
+            
             state = await message_handler.get_message_handler()(message, context, chat)
+
+            if update.effective_chat.id not in self.chat_functions_stack:
+                self.chat_functions_stack[update.effective_chat.id] = []
+            
+            self.chat_functions_stack[update.effective_chat.id].append(TaskFunction(message_handler.get_message_handler(), message, context, chat))
             return state
         
         return telegram_handler_function
@@ -65,7 +75,6 @@ class TelegramChatApi(ChatApiInterface):
         message_filter = message_hander.get_message_filter()
         telegam_filter = UniversalFilter(message_filter, self)
         return telegam_filter
-
 
     def set_handler_states(self, handler_states: Dict[str, List[MessageHandler]]):
         clear_handler_states = handler_states.copy()

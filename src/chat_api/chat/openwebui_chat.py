@@ -12,6 +12,9 @@ class OpenWebUIChat(ChatInterface):
         self.task = task
         self.openwebui_coordinator_url = openwebui_coordinator_url
 
+    def get_chat_backup_functons(self, chat_id):
+        pass
+
     async def send_message_to_query(self, message: str):
         task_id = self.task["task_id"]
         requests.post(self.openwebui_coordinator_url + f"task/{task_id}/add_message", params={"message": message})

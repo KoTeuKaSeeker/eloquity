@@ -6,6 +6,7 @@ from src.transcribers.transcriber_interface import TranscriberInterface
 from src.chat_api.message_handler import MessageHandler
 from src.chat_api.chat.chat_interface import ChatInterface
 from src.docs.document_generator_interface import DocumentGeneratorInterface
+from src.drop_box_manager import DropBoxManager
 import re
 import yaml
 import os
@@ -16,8 +17,8 @@ class HrLLMCommand(TranscibeLLMCommand):
     default_report_formats: Dict[str, str]
     report_document_generator: DocumentGeneratorInterface
 
-    def __init__(self, model: LLMInterface, filter_factory: MessageFilterFactoryInterface, transcriber: TranscriberInterface, report_document_generator: DocumentGeneratorInterface, temp_path: str, entry_point_state: str, formats_folder_path: str):
-        super().__init__(model, filter_factory, transcriber, temp_path, entry_point_state)
+    def __init__(self, model: LLMInterface, filter_factory: MessageFilterFactoryInterface, transcriber: TranscriberInterface, report_document_generator: DocumentGeneratorInterface, temp_path: str, entry_point_state: str, formats_folder_path: str, dropbox_manager: DropBoxManager):
+        super().__init__(model, filter_factory, transcriber, temp_path, entry_point_state, dropbox_manager)
         self.report_document_generator = report_document_generator
         self.chatting_state = "hr_llm_command.chatting_state"
         self.waiting_format_state = "hr_llm_command.waiting_format_state"
