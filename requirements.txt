@@ -8,7 +8,7 @@ moviepy
 dropbox
 whisperx
 sievedata
-deepgram-sdk>=3.*,<4.0
+deepgram-sdk>=3.0,<4.0
 python-docx
 selenium
 sounddevice
@@ -19,7 +19,7 @@ sentence_transformers
 tzlocal
 thefuzz
 open-webui
-faiss
+faiss-cpu
 fastapi==0.115.12
 python-multipart==0.0.20
 uvicorn==0.34.0
