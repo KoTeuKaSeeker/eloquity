@@ -32,7 +32,10 @@ class OpenwebuiChatApi():
         self.user_active_states = {}
         self.user_active_task = {}
         self.temp_path = temp_path 
-        
+    
+    def get_chat_functions_stack(self, chat_id) -> dict:
+        pass
+
     def set_handler_states(self, handler_states: Dict[str, List[MessageHandler]]):
         self.handler_states = handler_states
     

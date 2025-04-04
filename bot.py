@@ -36,6 +36,7 @@ from src.chat_api.message_filters.interfaces.message_filter_factory_interface im
 from src.chat_api.message_filters.factories.base_message_filter_factory import BaseMessageFilterFactory
 from src.commands.google_meet_connect_commands.google_meet_connect_command import GoogleMeetConnectCommand
 from src.commands.google_meet_connect_commands.google_meet_recording_audio_command import GoogleMeetRecordingAudioCommand
+from src.commands.dropbox_command import DropboxCommand
 from src.format_corrector import FormatCorrector
 from src.commands.transcibe_llm_command import TranscibeLLMCommand
 from src.AI.llm.gpttunnel_model import GptunnelModel
@@ -128,12 +129,14 @@ def load_commands(
         llm_model: LLMInterface, 
         filter_factory: MessageFilterFactoryInterface, 
         transcriber: TranscriberInterface,
-        report_document_generator: DocumentGeneratorInterface) -> List[CommandInterface]:
+        report_document_generator: DocumentGeneratorInterface,
+        dropbox_manager: DropBoxManager) -> List[CommandInterface]:
     commands = []
 
     commands.append(DirectStartCommand(filter_factory, {"summury_assistant": "summury_llm_command", "hr_assistant": "hr_llm_command"}))
-    commands.append(SummuryLLMCommand(llm_model, filter_factory, transcriber, AUDIO_DIR, entry_point_state="summury_llm_command"))
-    commands.append(HrLLMCommand(llm_model, filter_factory, transcriber, report_document_generator, AUDIO_DIR, entry_point_state="hr_llm_command", formats_folder_path=FORMATS_FORLDER_PATH))
+    commands.append(SummuryLLMCommand(llm_model, filter_factory, transcriber, AUDIO_DIR, entry_point_state="summury_llm_command", dropbox_manager=dropbox_manager))
+    commands.append(HrLLMCommand(llm_model, filter_factory, transcriber, report_document_generator, AUDIO_DIR, entry_point_state="hr_llm_command", formats_folder_path=FORMATS_FORLDER_PATH, dropbox_manager=dropbox_manager))
+    # commands.append(DropboxCommand(dropbox_manager, filter_factory))
     
     return commands
 
@@ -233,7 +236,8 @@ class ApplicationContainer(containers.DeclarativeContainer):
         llm_model=llm_model,
         filter_factory=filter_factory,
         transcriber=audio_transcriber,
-        report_document_generator=report_document_generator
+        report_document_generator=report_document_generator,
+        dropbox_manager=drop_box_manager
     )
 
 def init_container() -> ApplicationContainer:

@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List
 from src.chat_api.message_handler import MessageHandler
+from typing import Dict, List, Callable, Any
 
 class ChatApiInterface(ABC):
     @abstractmethod
