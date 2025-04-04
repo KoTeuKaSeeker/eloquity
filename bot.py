@@ -133,8 +133,9 @@ def load_commands(
         dropbox_manager: DropBoxManager) -> List[CommandInterface]:
     commands = []
 
-    commands.append(DirectStartCommand(filter_factory, {"summury_assistant": "summury_llm_command", "hr_assistant": "hr_llm_command"}))
-    commands.append(SummuryLLMCommand(llm_model, filter_factory, transcriber, AUDIO_DIR, entry_point_state="summury_llm_command", dropbox_manager=dropbox_manager))
+    # commands.append(DirectStartCommand(filter_factory, {"summury_assistant": "summury_llm_command", "hr_assistant": "hr_llm_command"}))
+    commands.append(StartCommand(filter_factory, "hr_llm_command", [["Создать dropbox ссылку"]]))
+    # commands.append(SummuryLLMCommand(llm_model, filter_factory, transcriber, AUDIO_DIR, entry_point_state="summury_llm_command", dropbox_manager=dropbox_manager))
     commands.append(HrLLMCommand(llm_model, filter_factory, transcriber, report_document_generator, AUDIO_DIR, entry_point_state="hr_llm_command", formats_folder_path=FORMATS_FORLDER_PATH, dropbox_manager=dropbox_manager))
     # commands.append(DropboxCommand(dropbox_manager, filter_factory))
     
@@ -187,7 +188,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
         api_key=config.gptunnel_api_key,
         bitrix_manager=bitrix_manager,
         users_database=users_database,
-        model_name=providers.Object("gpt-4o-mini"),
+        model_name=providers.Object("gpt-4o"),
     )
 
     audio_recorder = providers.Singleton(
@@ -242,7 +243,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
 
 def init_container() -> ApplicationContainer:
     """Инициализирует DI-контейнер, загружая конфигурацию из .env и переменных окружения."""
-    load_dotenv()  # Загрузка переменных окружения из .env
+    load_dotenv()  # Загрузка переменных окружения  из .env
 
     container = ApplicationContainer()
 

@@ -6,6 +6,7 @@ from src.chat_api.message_filters.base_filters.text_message_filter import TextMe
 from src.chat_api.message_filters.base_filters.audio_message_filter import AudioMessageFilter
 from src.chat_api.message_filters.base_filters.regex_message_filter import RegexMessageFilter
 from src.chat_api.message_filters.base_filters.command_message_filter import CommandMessageFilter
+from src.chat_api.message_filters.base_filters.equal_message_filter import EqualMessageFilter
 
 
 
@@ -20,7 +21,8 @@ class BaseMessageFilterFactory(MessageFilterFactoryInterface):
             "video": AudioMessageFilter,
             "document": AudioMessageFilter,
             "document.all": AudioMessageFilter,
-            "regex": RegexMessageFilter
+            "regex": RegexMessageFilter,
+            "equal": EqualMessageFilter
         }
         
         return fabric[filter_type](**args)

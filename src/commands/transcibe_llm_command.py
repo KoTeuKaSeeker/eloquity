@@ -24,6 +24,7 @@ class TranscibeLLMCommand(LLMCommand):
         self.temp_path = temp_path
         self.transcribe_state = entry_point_state
         self.chatting_state = "transcribe_llm_command.chatting_state"
+        self.active_keyboard = None
     
     async def transcirbe_audio(self, message: dict, context: dict, chat: ChatInterface):
 
@@ -97,9 +98,22 @@ class TranscibeLLMCommand(LLMCommand):
         return chat.move_next(context, self.chatting_state)
 
     async def waiting_audio_message(self, message: dict, context: dict, chat: ChatInterface):
-        await chat.send_message_to_query("⏮️ Отправьте аудиозапись для продолжения взаимодействия с ботом.")
+        message = "⏮️ Отправьте аудиозапись для продолжения взаимодействия с ботом."
+        if self.active_keyboard is not None:
+            await chat.send_keyboad(message, self.active_keyboard)
+        else:
+            self.active_keyboard = [["Создать dropbox ссылку"]]
+            await chat.send_keyboad(message, self.active_keyboard)
         return chat.stay_on_state(context)
     
+    async def create_dropbox_link(self, message: dict, context: dict, chat: ChatInterface):
+        dropbox_url = self.dropbox_loader.dropbox_manager.open_drop_box_file_request(context)
+        
+        self.active_keyboard = [["Загрузить файл из dropbox", "Создать dropbox ссылку"]]
+        await chat.send_keyboad(f"✨ Создана ссылка для загрузки файла в dropbox:\n{dropbox_url}", self.active_keyboard)
+        
+        return chat.stay_on_state(context)
+
     async def from_dropbox_handler(self, message: dict, context: dict, chat: ChatInterface):
         audio_path = await self.dropbox_loader.load_audio(message, context, chat)
         if audio_path is None:
@@ -107,7 +121,7 @@ class TranscibeLLMCommand(LLMCommand):
         file_container = PathFileContainer(audio_path)
         message["audio_container"] = file_container
 
-        await chat.send_message_to_query("🧨 Аудио успешно загрузилось с dropbox.")
+        await chat.send_message_to_query("🧨 Аудио успешно загружено из dropbox.")
 
         return await self.transcirbe_audio(message, context, chat)
 
@@ -118,10 +132,13 @@ class TranscibeLLMCommand(LLMCommand):
             MessageHandler(self.filter_factory.create_filter("audio"), self.transcirbe_audio),
             MessageHandler(self.filter_factory.create_filter("voice"), self.transcirbe_audio),
             MessageHandler(self.filter_factory.create_filter("video"), self.transcirbe_audio),
-            MessageHandler(self.filter_factory.create_filter("all"), self.waiting_audio_message),
+            MessageHandler(self.filter_factory.create_filter("all"), self.waiting_audio_message)
         ]
 
-        dropbox_states = [MessageHandler(self.filter_factory.create_filter("command", dict(command="from_dropbox")), self.from_dropbox_handler)]
+        dropbox_states = [
+                MessageHandler(self.filter_factory.create_filter("equal", dict(messages=["Создать dropbox ссылку", "1"])), self.create_dropbox_link),
+                MessageHandler(self.filter_factory.create_filter("equal", dict(messages=["Загрузить файл из dropbox", "2"])), self.from_dropbox_handler)
+            ]
 
         states[self.transcribe_state] = dropbox_states + audio_trancribe_states
         states[self.chatting_state] = dropbox_states + states[self.chatting_state] + audio_trancribe_states

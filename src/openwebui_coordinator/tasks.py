@@ -13,6 +13,7 @@ class Task:
     task_id: str
     user_id: str
     chat_id: str
+    user_active_keyboard: List[List[str]]
     model_name: str
     initial_message: str
     initial_file: str
@@ -42,6 +43,7 @@ class TaskResponse(BaseModel):
     task_id: str
     user_id: str
     chat_id: str
+    user_active_keyboard: List[List[str]]
     model_name: str
     initial_message: str
     initial_file: str
@@ -62,6 +64,7 @@ async def create_task(user_id: str = Form(...),
                       chat_id: str = Form(...), 
                       model_name: str = Form(...), 
                       message: str = Form(...), 
+                      user_active_keyboard: List[List[str]] = Form(...),
                       file: Optional[UploadFile] = File(None)):
     file_url = ""
     if file is not None:
@@ -72,6 +75,7 @@ async def create_task(user_id: str = Form(...),
         task_id=task_id,
         user_id=user_id,
         chat_id=chat_id,
+        user_active_keyboard=user_active_keyboard,
         model_name=model_name,
         initial_message=message,
         initial_file=file_url,
@@ -88,6 +92,7 @@ async def create_task(user_id: str = Form(...),
         task_id=task_id,
         user_id=task.user_id,
         chat_id=task.chat_id,
+        user_active_keyboard=user_active_keyboard,
         model_name=task.model_name,
         initial_message=task.initial_message,
         initial_file=task.initial_file,
@@ -97,7 +102,7 @@ async def create_task(user_id: str = Form(...),
     )
 
 @router.post("/task/modify")
-async def modify_task(task_id: str = Form(...), user_id: str = Form(...), chat_id: str = Form(...), message: str = Form(...), file: Optional[UploadFile] = File(None)):
+async def modify_task(task_id: str = Form(...), user_id: str = Form(...), user_active_keyboard: List[List[str]] = Form(...), chat_id: str = Form(...), message: str = Form(...), file: Optional[UploadFile] = File(None)):
     file_url = ""
     if file is not None:
         file_url = upload_file(file)
@@ -114,6 +119,7 @@ async def modify_task(task_id: str = Form(...), user_id: str = Form(...), chat_i
 
     task.user_id = user_id
     task.chat_id = chat_id
+    task.user_active_keyboard = user_active_keyboard
     task.initial_message = message
     task.initial_file = file_url
 
@@ -126,6 +132,7 @@ async def modify_task(task_id: str = Form(...), user_id: str = Form(...), chat_i
         task_id=task_id,
         user_id=task.user_id,
         chat_id=task.chat_id,
+        user_active_keyboard=task.user_active_keyboard,
         model_name=task.model_name,
         initial_message=task.initial_message,
         initial_file=task.initial_file,
@@ -178,7 +185,7 @@ async def update_status(task_id: str, status: str):
 # 5. GET /task/{task_id}
 @router.get("/task/{task_id}", response_model=TaskResponse)
 async def get_task(task_id: str):
-    task = tasks_db.get(task_id)
+    task: Task = tasks_db.get(task_id)
     print(f"TASK[{task_id}]:\n{task}")
     if not task:
         raise HTTPException(status_code=404, detail="Task not found.")
@@ -186,6 +193,7 @@ async def get_task(task_id: str):
         task_id=task_id,
         user_id=task.user_id,
         chat_id=task.chat_id,
+        user_active_keyboard=task.user_active_keyboard,
         model_name=task.model_name,
         initial_message=task.initial_message,
         initial_file=task.initial_file,

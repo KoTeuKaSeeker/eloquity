@@ -1,6 +1,6 @@
 from typing import Any, List, Dict
 from src.chat_api.chat.chat_interface import ChatInterface
-from telegram import Update, Message, Chat, MessageEntity, Audio, Voice, Video, Document, User, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, Message, Chat, MessageEntity, Audio, Voice, Video, Document, User, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import CallbackContext, ConversationHandler
 from src.chat_api.task_function import TaskFunction
 import datetime
@@ -34,6 +34,13 @@ class TelegramChat(ChatInterface):
     async def send_file_to_query(self, file_path: str, file_name: str = "some_file"):
         with open(file_path, "rb") as file:
             await self.update.message.reply_document(document=file, read_timeout=60)
+    
+    async def send_keyboad(self, message: str, keyboard: List[List[str]]):
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        await self.update.message.reply_text(message, reply_markup=reply_markup)
+
+    async def remove_keyboad(self, message: str):
+        await self.update.message.reply_text(message, reply_markup=ReplyKeyboardRemove())
 
     async def send_message_to_event_loop(self, message: dict, context: dict, chat: ChatInterface):
         """

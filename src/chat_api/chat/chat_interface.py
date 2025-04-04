@@ -14,6 +14,14 @@ class ChatInterface(ABC):
         pass        
     
     @abstractmethod
+    async def send_keyboad(self, message: str, keyboard: List[List[str]]):
+        pass
+
+    @abstractmethod
+    async def remove_keyboad(self, message: str):
+        pass
+    
+    @abstractmethod
     async def send_message_to_event_loop(self, message: dict, context: dict, chat: "ChatInterface"):
         """
             Отправляет новое сообщение, которое должен увидеть сам же бот, но не пользователь (сам себе отправляет сообщение, которое поймают хендлеры).

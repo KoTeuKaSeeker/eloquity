@@ -1,10 +1,9 @@
-from typing import Any
+from typing import Any, List
 import asyncio
 from src.chat_api.chat.chat_interface import ChatInterface
 import requests
 
 class OpenWebUIChat(ChatInterface):
-
     task: dict
     openwebui_coordinator_url: str
 
@@ -26,6 +25,12 @@ class OpenWebUIChat(ChatInterface):
                 f"{self.openwebui_coordinator_url}/task/{task_id}/upload_file", 
                 files={"file": (file.name, file, "application/octet-stream")}
             )
+    
+    async def send_keyboad(self, message: str, keyboard: List[List[str]], keyboard_messages: List[List[str]]):
+        self.task["user_active_keyboard"]
+
+    async def remove_keyboad(self, message: str):
+        pass
     
     async def send_message_to_event_loop(self, message: dict, context: dict, chat: ChatInterface):
         """
