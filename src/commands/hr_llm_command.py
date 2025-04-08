@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, List
 from src.commands.transcibe_llm_command import TranscibeLLMCommand
 from src.AI.llm.llm_interface import LLMInterface
 from src.chat_api.message_filters.interfaces.message_filter_factory_interface import MessageFilterFactoryInterface
@@ -7,6 +7,7 @@ from src.chat_api.message_handler import MessageHandler
 from src.chat_api.chat.chat_interface import ChatInterface
 from src.docs.document_generator_interface import DocumentGeneratorInterface
 from src.drop_box_manager import DropBoxManager
+import traceback
 import re
 import yaml
 import os
@@ -16,10 +17,14 @@ import uuid
 class HrLLMCommand(TranscibeLLMCommand):
     default_report_formats: Dict[str, str]
     report_document_generator: DocumentGeneratorInterface
+    report_generation_model: LLMInterface
+    table_generation_model: LLMInterface
 
-    def __init__(self, model: LLMInterface, filter_factory: MessageFilterFactoryInterface, transcriber: TranscriberInterface, report_document_generator: DocumentGeneratorInterface, temp_path: str, entry_point_state: str, formats_folder_path: str, dropbox_manager: DropBoxManager):
-        super().__init__(model, filter_factory, transcriber, temp_path, entry_point_state, dropbox_manager)
+    def __init__(self, chatting_model: LLMInterface, report_generation_model: LLMInterface, table_generation_model: LLMInterface, filter_factory: MessageFilterFactoryInterface, transcriber: TranscriberInterface, report_document_generator: DocumentGeneratorInterface, temp_path: str, entry_point_state: str, formats_folder_path: str, dropbox_manager: DropBoxManager):
+        super().__init__(chatting_model, filter_factory, transcriber, temp_path, entry_point_state, dropbox_manager)
         self.report_document_generator = report_document_generator
+        self.report_generation_model = report_generation_model
+        self.table_generation_model = table_generation_model
         self.chatting_state = "hr_llm_command.chatting_state"
         self.waiting_format_state = "hr_llm_command.waiting_format_state"
         self.waiting_format_name_state = "hr_llm_command.waiting_format_name_state"
@@ -84,6 +89,65 @@ class HrLLMCommand(TranscibeLLMCommand):
 
     async def after_transcribe_message(self, message: dict, context: dict, chat: ChatInterface):
         return await self.select_format_message(message, context, chat)
+    
+    def get_discrimination_message(self, messages_for_discrimination: List[dict]) -> str:
+        messages_history = messages_for_discrimination.copy()
+        for message in messages_history:
+            message["role"] = "user"
+
+        discrimination_prompt = """
+            Попробуй в сгенерированном тексте таблицы найти как можно больше несоответствий и ошибок в формате (почти точно они есть). Подробно распиши их и расскажи, 
+            как генерировать таблицу, чтобы было всё правильно. Твои замечания затем будут отправляться другой модели, которая будет на основе них пытаться сделать как можно более
+            корректную таблицу. Ты выступаешь в роли дискриминатора.
+
+            Если же таблица сгенерированна полность корректно, в ответ просто ничего не пиши.
+
+            P. S. Не забуть в конце попросить другую модель, которой будет посылаться твой ответ сгенерировать таблицу в json формате.
+        """
+
+        discrimination_message = {"role": "user", "content": discrimination_prompt}
+        messages_history.append(discrimination_message)
+        discrimation_respose = self.table_generation_model.get_response(messages_history)
+        
+        return discrimation_respose
+
+
+    def generate_document_with_correction(self, document_path: str, messages_for_table_generation: List[dict], count_correction: int = 5) -> dict:
+        messages_history = messages_for_table_generation.copy()
+
+        count_tries = 0
+        while count_tries < count_correction:
+            excel_response = self.table_generation_model.get_response(messages_history)
+            messages_history.append(excel_response)
+            
+            try:
+                table_data = json.loads(excel_response["content"])
+                self.report_document_generator.generate_document(table_data, document_path)
+
+                discrimination_messages = [messages_history[0], messages_history[1], excel_response]
+                discrimination_message = self.get_discrimination_message(discrimination_messages)
+                discrimination_message["role"] = "user"
+
+                if len(discrimination_message["content"]) == 0:
+                    table_data = json.loads(excel_response["content"])
+                    self.report_document_generator.generate_document(table_data, document_path)
+                    return document_path
+
+                messages_history.append(discrimination_message)
+            except Exception as e:
+                traceback_str = "\n".join(traceback.format_exception(type(e), e, e.__traceback__))
+
+                correction_prompt = f"""
+                    Ты сгенерировал таблицу некорректно, поэтому при попытки преобразования ещё в json или создания из неё excel документа произошла ошибка. Вот как выгялдит текст ошибки:
+                    {traceback_str}
+
+                    Повтори генерацию таблицы, но на этот раз сделай так, чтобы она была корректной.
+                """
+                correction_message = {"role": "user", "content": correction_prompt}
+                messages_history.append(correction_message)
+        
+        raise ValueError(f"Не удалось распарсить ответ модели для генерации таблицы.")
+
 
     async def generate_report(self, message: dict, context: dict, chat: ChatInterface):
         if "messages_history" not in context["chat_data"]:
@@ -93,12 +157,36 @@ class HrLLMCommand(TranscibeLLMCommand):
         report_format = context["chat_data"]["report_format"]
         
         messages_history: list = context["chat_data"]["messages_history"]
-        messages_history.append({"role": "user", "content": f"Также вместе с транскрипцией известно о том, в каком именно формате необходимо составлять отчёт. Формат называется '{format_name}' и выглядит следующим образом:\n{report_format}"})
+        transcription_message = messages_history[-1]
 
-        model_response = self.model.get_response(messages_history)
+        format_prompt = f"""
+        Также вместе с транскрипцией известно о том, в каком именно формате необходимо составлять отчёт. Формат называется '{format_name}' и выглядит следующим образом:
+        {report_format}
+
+        ОЧЕНЬ ВАЖНО:
+        Прошу тебя оформать отчёт не в md формате, как ты обычно делаешь, а в обычном текстовом формате с использование смайликов для более красивого оформления. Смотри, что я имею ввиду.
+        Во-перых, ты не можешь использовать **текст** для того, чтобы сделать его жирным. Ты не можешь создавать таблицы с помощью md формата - чтобы сделать табличку, лучше
+        используй обычное перечисление по пунктам. Например, вот так:
+        1. 👋 Софт скилы:
+            • Коммуникативность - 2.3
+            • Командная работа - 3.5
+            • Лидерство - 1.0
+        2. 🖥️ Технические навыки:
+            • Python - 4.5
+            • Java - 3.0
+            • C++ - 2.0
+        
+        Ещё раз тебе повторю - НЕ ДЕЛАЙ НИКАКОЙ ТЕКСТ ЖИРНЫМ (с помощью **), НЕ ДЕЛАЙ ЗАГОЛОВКИ (с помощью #). Форматировани md не работает там, где я буду использовать
+        твой ответ.
+        """
+
+        format_message = {"role": "user", "content": format_prompt}
+        messages_for_report = [transcription_message, format_message]
+
+        model_response = self.report_generation_model.get_response(messages_for_report)
         messages_history.append(model_response)
 
-        excel_message = """
+        excel_prompt = """
             Теперь необходимо сгенерировать этот же формат, только не текстом, а в json формате, который будет описывать таблицу следующим образом:
             {
                 "columns": {
@@ -166,15 +254,14 @@ class HrLLMCommand(TranscibeLLMCommand):
             1. Твоё ответ должен содержать чисто текст с json форматом, без каких-либо оборачивающих кавычек.
             2. В ответе нельзя писать ничего кроме json формата, иначе программе не удасться его распарсить и вылетит ошибка (а это очень и очень плохо).
         """
-        
-        messages_history.append({"role": "user", "content": excel_message})
-        excel_model_response = self.model.get_response(messages_history)
-        messages_history[-1] = excel_model_response # Заменяем просьбу пользователя на табличку бота
+        excel_message = {"role": "user", "content": excel_prompt}
+        messages_for_table_generation = [transcription_message, format_message, model_response, excel_message]
+
+        excel_response = self.table_generation_model.get_response(messages_for_table_generation)
+        table_data = json.loads(excel_response["content"])
 
         document_name = str(uuid.uuid4())
         document_path = os.path.join(self.temp_path, document_name + ".xlsx")
-
-        table_data = json.loads(excel_model_response["content"])
         self.report_document_generator.generate_document(table_data, document_path)
 
         await chat.send_message_to_query(model_response["content"])

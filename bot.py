@@ -126,7 +126,9 @@ def init_logger():
     logging.getLogger("sieve").setLevel(logging.CRITICAL)
 
 def load_commands(
-        llm_model: LLMInterface, 
+        chatting_model: LLMInterface,
+        report_generation_model: LLMInterface, 
+        table_generation_model: LLMInterface, 
         filter_factory: MessageFilterFactoryInterface, 
         transcriber: TranscriberInterface,
         report_document_generator: DocumentGeneratorInterface,
@@ -136,7 +138,7 @@ def load_commands(
     # commands.append(DirectStartCommand(filter_factory, {"summury_assistant": "summury_llm_command", "hr_assistant": "hr_llm_command"}))
     commands.append(StartCommand(filter_factory, "hr_llm_command", [["Создать dropbox ссылку"]], [["/create_dbx"]]))
     # commands.append(SummuryLLMCommand(llm_model, filter_factory, transcriber, AUDIO_DIR, entry_point_state="summury_llm_command", dropbox_manager=dropbox_manager))
-    commands.append(HrLLMCommand(llm_model, filter_factory, transcriber, report_document_generator, AUDIO_DIR, entry_point_state="hr_llm_command", formats_folder_path=FORMATS_FORLDER_PATH, dropbox_manager=dropbox_manager))
+    commands.append(HrLLMCommand(chatting_model, report_generation_model, table_generation_model, filter_factory, transcriber, report_document_generator, AUDIO_DIR, entry_point_state="hr_llm_command", formats_folder_path=FORMATS_FORLDER_PATH, dropbox_manager=dropbox_manager))
     # commands.append(DropboxCommand(dropbox_manager, filter_factory))
     
     return commands
@@ -223,18 +225,32 @@ class ApplicationContainer(containers.DeclarativeContainer):
         supported_audio_formats=providers.Object(SUPPORTED_AUDIO_FORMATS), 
         supported_video_formats=providers.Object(SUPPORTED_VIDEO_FORMATS)
     )
-    
-    llm_model = providers.Singleton(
+
+    chatting_model = table_generation_model = providers.Singleton(
         GptunnelModel,
         api_key=config.gptunnel_api_key, 
         model_name=providers.Object("gpt-4o-mini")
+    )
+
+    report_generation_model = providers.Singleton(
+        GptunnelModel,
+        api_key=config.gptunnel_api_key, 
+        model_name=providers.Object("gpt-4o")
+    )
+
+    table_generation_model = providers.Singleton(
+        GptunnelModel,
+        api_key=config.gptunnel_api_key, 
+        model_name=providers.Object("gpt-4o")
     )
 
     report_document_generator = providers.Singleton(ExcelDocumentGenerator)
 
     commands = providers.Singleton(
         load_commands,
-        llm_model=llm_model,
+        chatting_model=chatting_model,
+        report_generation_model=report_generation_model,
+        table_generation_model=table_generation_model,
         filter_factory=filter_factory,
         transcriber=audio_transcriber,
         report_document_generator=report_document_generator,

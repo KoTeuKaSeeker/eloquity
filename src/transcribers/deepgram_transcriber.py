@@ -10,13 +10,13 @@ class DeepgramTranscriber(TranscriberInterface):
     
     def transcript_audio(self, file_path: str) -> TranscriberInterface.TranscribeResult:
         with open(file_path, 'rb') as buffer_data:
-            payload = { 'buffer': buffer_data }
+            payload = { 'buffer': buffer_data.read() }
 
-            options = PrerecordedOptions(
-                punctuate=True, model="nova-2", language="ru", diarize=True
-            )
+        options = PrerecordedOptions(
+            punctuate=True, model="nova-2", language="ru", diarize=True
+        )
 
-            response = self.deepgram.listen.prerecorded.v('1').transcribe_file(payload, options, timeout=600)
+        response = self.deepgram.listen.prerecorded.v('1').transcribe_file(payload, options, timeout=300)
 
         segments: List[TranscriberInterface.SpeakerData] = []
         text = ""
