@@ -35,7 +35,7 @@ class TelegramChat(ChatInterface):
         with open(file_path, "rb") as file:
             await self.update.message.reply_document(document=file, read_timeout=60)
     
-    async def send_keyboad(self, message: str, keyboard: List[List[str]]):
+    async def send_keyboad(self, message: str, keyboard: List[List[str]], keyboard_keys: List[List[str]]):
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         await self.update.message.reply_text(message, reply_markup=reply_markup)
 

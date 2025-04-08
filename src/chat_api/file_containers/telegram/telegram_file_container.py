@@ -22,12 +22,7 @@ class TelegramFileContainer(FileContainerInterface):
     
     async def get_file_path(self):
         if self.file_path is None:
-            try:
-                self.file_path = await self.format_handler_manager.load_audio(self.telegram_message)
-            except TooBigFileException as e:
-                await self.telegram_message.reply_text(TooBigFileException().open_dropbox_response(self.context, self.dropbox_manager))
-            except Exception as e:
-                await self.telegram_message.reply_text(str(TelegramBotException(e)))
+            self.file_path = await self.format_handler_manager.load_audio(self.telegram_message)
             
         return self.file_path
 

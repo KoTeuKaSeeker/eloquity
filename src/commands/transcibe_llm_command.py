@@ -9,6 +9,8 @@ from src.chat_api.file_containers.file_container_interface import FileContainerI
 from src.drop_box_manager import DropBoxManager
 from src.commands.audio_loaders.dropbox_audio_loader import DropboxAudioLoader
 from src.chat_api.file_containers.path_file_container import PathFileContainer
+from src.exeptions.telegram_exceptions.too_big_file_exception import TooBigFileException
+from src.exeptions.telegram_exceptions.telegram_bot_exception import TelegramBotException
 from typing import List
 import os
 import uuid
@@ -16,15 +18,16 @@ import uuid
 class TranscibeLLMCommand(LLMCommand):
     transcriber: TranscriberInterface
     temp_path: str
+    dropbox_manager: DropBoxManager
 
     def __init__(self, model: LLMInterface, filter_factory: MessageFilterFactoryInterface, transcriber: TranscriberInterface, temp_path: str,  entry_point_state: str, dropbox_manager: DropBoxManager):
         super().__init__(model, filter_factory)
         self.dropbox_loader = DropboxAudioLoader(dropbox_manager)
+        self.dropbox_manager = dropbox_manager
         self.transcriber = transcriber
         self.temp_path = temp_path
         self.transcribe_state = entry_point_state
         self.chatting_state = "transcribe_llm_command.chatting_state"
-        self.active_keyboard = None
     
     async def transcirbe_audio(self, message: dict, context: dict, chat: ChatInterface):
 
@@ -33,7 +36,20 @@ class TranscibeLLMCommand(LLMCommand):
         messages_history: List[dict] = context["chat_data"]["messages_history"]
 
         audio_container: FileContainerInterface = message["audio_container"]
-        file_path = await audio_container.get_file_path()
+        try:
+            file_path = await audio_container.get_file_path()
+        except TooBigFileException as e:
+            keyboard = [["Загрузить файл из dropbox", "Создать dropbox ссылку"]]
+            keyboard_keys = [["/load_dbx", "/create_dbx"]]
+            await chat.send_keyboad(e.open_dropbox_response(context, self.dropbox_manager), keyboard, keyboard_keys)
+            return chat.stay_on_state(context)
+        except Exception as e:
+            keyboard = [["Создать dropbox ссылку"]]
+            keyboard_keys = [["/create_dbx"]]
+            await chat.send_keyboad(str(e), keyboard, keyboard_keys)
+            return chat.stay_on_state(context)
+
+            
 
         transcribe_result = self.transcriber.transcript_audio(file_path)
         transcription = "\n".join(f"speaker_{segment.speaker_id}: {segment.text}" for segment in transcribe_result.segments)
@@ -99,18 +115,20 @@ class TranscibeLLMCommand(LLMCommand):
 
     async def waiting_audio_message(self, message: dict, context: dict, chat: ChatInterface):
         message = "⏮️ Отправьте аудиозапись для продолжения взаимодействия с ботом."
-        if self.active_keyboard is not None:
-            await chat.send_keyboad(message, self.active_keyboard)
+        if "active_keyboard" in context["chat_data"]:
+            await chat.send_keyboad(message, context["chat_data"].get("active_keyboard", [[]]), context["chat_data"].get("keyboard_keys", None))
         else:
-            self.active_keyboard = [["Создать dropbox ссылку"]]
-            await chat.send_keyboad(message, self.active_keyboard)
+            keyboard = [["Создать dropbox ссылку"]]
+            keyboard_keys = [["/create_dbx"]]
+            await chat.send_keyboad(message, keyboard, keyboard_keys)
         return chat.stay_on_state(context)
     
     async def create_dropbox_link(self, message: dict, context: dict, chat: ChatInterface):
         dropbox_url = self.dropbox_loader.dropbox_manager.open_drop_box_file_request(context)
         
-        self.active_keyboard = [["Загрузить файл из dropbox", "Создать dropbox ссылку"]]
-        await chat.send_keyboad(f"✨ Создана ссылка для загрузки файла в dropbox:\n{dropbox_url}", self.active_keyboard)
+        keyboard = [["Загрузить файл из dropbox", "Создать dropbox ссылку"]]
+        keyboard_keys = [["/load_dbx", "/create_dbx"]]
+        await chat.send_keyboad(f"✨ Создана ссылка для загрузки файла в dropbox:\n{dropbox_url}", keyboard, keyboard_keys)
         
         return chat.stay_on_state(context)
 
@@ -136,8 +154,8 @@ class TranscibeLLMCommand(LLMCommand):
         ]
 
         dropbox_states = [
-                MessageHandler(self.filter_factory.create_filter("equal", dict(messages=["Создать dropbox ссылку", "1"])), self.create_dropbox_link),
-                MessageHandler(self.filter_factory.create_filter("equal", dict(messages=["Загрузить файл из dropbox", "2"])), self.from_dropbox_handler)
+                MessageHandler(self.filter_factory.create_filter("equal", dict(messages=["Создать dropbox ссылку", "/create_dbx"])), self.create_dropbox_link),
+                MessageHandler(self.filter_factory.create_filter("equal", dict(messages=["Загрузить файл из dropbox", "/load_dbx"])), self.from_dropbox_handler)
             ]
 
         states[self.transcribe_state] = dropbox_states + audio_trancribe_states

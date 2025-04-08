@@ -90,13 +90,26 @@ class OpenwebuiChatApi():
     def update_task_status(self, task_id: str, status: str):
         status_data = {"status": status}
         response = requests.post(f"{self.openwebui_coordinator_url}/task/{task_id}/update_status", params=status_data)
+    
+    async def display_user_keyboard(self, context: dict, chat: OpenWebUIChat):
+        if "active_keyboard" in context["chat_data"]:
+            keyboard = context["chat_data"].get("active_keyboard", [[]])
+            keyboard_keys = context["chat_data"].get("keyboard_keys", [[]]) # Если нет кнопок - будет ошибка
+            
+            keyboard_str = ""
+            for i in range(len(keyboard)):
+                for j in range(len(keyboard[i])):
+                    keyboard_str += f"[{keyboard_keys[i][j]}]: {keyboard[i][j]}\n"
+
+
+            await chat.send_message_to_query(f"---\nДоступные кнопки (напишите текст из квадратных скобок для выбора):\n{keyboard_str}")
 
     async def handle_user_task(self, task: dict):
         data_key = self.get_data_key(task)
 
         message = self.get_message_dict(task)
         context = self.get_context_dict(task)
-        chat = OpenWebUIChat(task, self.openwebui_coordinator_url)
+        chat = OpenWebUIChat(task, self.openwebui_coordinator_url, context)
 
         if data_key not in self.user_active_states:
             self.user_active_states[data_key] = "entry_point"
@@ -113,11 +126,12 @@ class OpenwebuiChatApi():
         if filtered_handler is not None:
             new_state = await filtered_handler.get_message_handler()(message, context, chat)
 
+        await self.display_user_keyboard(context, chat)
+
         self.user_active_states[data_key] = new_state
         self.user_active_task[data_key] = None
         self.update_task_status(task["task_id"], "Done")
         
-
     async def polling_loop(self, poll_interval: float = 3):
         while True:
             response = requests.get(self.openwebui_coordinator_url + "tasks")

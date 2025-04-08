@@ -6,12 +6,14 @@ import requests
 class OpenWebUIChat(ChatInterface):
     task: dict
     openwebui_coordinator_url: str
+    context: dict
 
-    def __init__(self, task: dict, openwebui_coordinator_url: str):
+    def __init__(self, task: dict, openwebui_coordinator_url: str, context: dict):
         self.task = task
         self.openwebui_coordinator_url = openwebui_coordinator_url
+        self.context = context
 
-    def get_chat_backup_functons(self, chat_id):
+    def get_chat_functions_stack(self):
         pass
 
     async def send_message_to_query(self, message: str):
@@ -26,11 +28,20 @@ class OpenWebUIChat(ChatInterface):
                 files={"file": (file.name, file, "application/octet-stream")}
             )
     
-    async def send_keyboad(self, message: str, keyboard: List[List[str]], keyboard_messages: List[List[str]]):
-        self.task["user_active_keyboard"]
+    async def send_keyboad(self, message: str, keyboard: List[List[str]], keyboard_keys: List[List[str]]):
+        self.context["chat_data"]["active_keyboard"] = keyboard
+        self.context["chat_data"]["keyboard_keys"] = keyboard_keys
+    
+        await self.send_message_to_query(message)
 
     async def remove_keyboad(self, message: str):
-        pass
+        if "active_keyboard" in self.context["chat_data"]:
+            del self.context["chat_data"]["active_keyboard"]
+        
+        if "keyboard_keys" in self.context["chat_data"]:
+            del self.context["chat_data"]["keyboard_keys"]
+
+        await self.send_message_to_query(message)
     
     async def send_message_to_event_loop(self, message: dict, context: dict, chat: ChatInterface):
         """

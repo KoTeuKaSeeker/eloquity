@@ -14,7 +14,7 @@ class ChatInterface(ABC):
         pass        
     
     @abstractmethod
-    async def send_keyboad(self, message: str, keyboard: List[List[str]]):
+    async def send_keyboad(self, message: str, keyboard: List[List[str]], keyboard_keys: List[List[str]]):
         pass
 
     @abstractmethod

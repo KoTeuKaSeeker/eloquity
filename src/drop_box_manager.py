@@ -51,7 +51,7 @@ class DropBoxManager():
         files = [entry for entry in response.entries if isinstance(entry, dropbox.files.FileMetadata)]
         latest_file = max(files, key=lambda f: f.server_modified, default=None)
 
-        extention = os.path.splitext(latest_file.name)[1]
+        extention = os.path.splitext(latest_file.name)[1].lower()
         if extention in allow_audio_extentions:
             save_folder = self.audio_dir
         elif extention in allow_video_extentions:
@@ -88,7 +88,7 @@ class DropBoxManager():
         
 
         file_path = await self.load_last_file(context, chat)
-        is_audio = os.path.splitext(file_path)[1] in allow_audio_extentions
+        is_audio = os.path.splitext(file_path)[1].lower() in allow_audio_extentions
             
         self.dbx.files_delete_v2(self.get_user_folder(context))
 

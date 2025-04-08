@@ -77,7 +77,8 @@ class HrLLMCommand(TranscibeLLMCommand):
             format_list = "(список форматов пуст)"
 
         keyboard = [["Добавить новый формат", "Удалить существующий формат"]]
-        await chat.send_keyboad(f"⏮️ Теперь выберите номер формата, в соответствии с которым вы хотите получить отчёт:\n{format_list}", keyboard)
+        keyboard_keys = [["a", "b"]]
+        await chat.send_keyboad(f"⏮️ Теперь выберите номер формата, в соответствии с которым вы хотите получить отчёт:\n{format_list}", keyboard, keyboard_keys)
 
         return chat.move_next(context, self.waiting_format_state)
 
@@ -179,8 +180,9 @@ class HrLLMCommand(TranscibeLLMCommand):
         await chat.send_message_to_query(model_response["content"])
         await chat.send_file_to_query(document_path)
 
-        self.active_keyboard = [["Создать dropbox ссылку"]]
-        await chat.send_keyboad("⏮️ Сейчас можете продолжить беседу с ботом - он имеет транскрибацию и отчёт в памяти.", self.active_keyboard)
+        keyboard = [["Создать dropbox ссылку"]]
+        keyboard_keys = [["/create_dbx"]]
+        await chat.send_keyboad("⏮️ Сейчас можете продолжить беседу с ботом - он имеет транскрибацию и отчёт в памяти.", keyboard, keyboard_keys)
 
         return chat.move_next(context, self.chatting_state)
 
@@ -237,7 +239,8 @@ class HrLLMCommand(TranscibeLLMCommand):
         if len(format_list) == 0:
             format_list = "(список форматов пуст)"
         keyboard = [["Добавить новый формат", "Удалить существующий формат"]]
-        await chat.send_keyboad(f"🪡 Вы отправили некорректный номер формата. Выберите желаемый формат для составления отчёта из следующего списка:\n{format_list}")
+        keyboard_keys = [["a", "b"]]
+        await chat.send_keyboad(f"🪡 Вы отправили некорректный номер формата. Выберите желаемый формат для составления отчёта из следующего списка:\n{format_list}", keyboard, keyboard_keys)
         return chat.move_next(context, self.waiting_format_state)
 
     async def response_remove_format_name_command(self, message: dict, context: dict, chat: ChatInterface):
@@ -248,7 +251,8 @@ class HrLLMCommand(TranscibeLLMCommand):
             format_list = "(нет форматов, которые можно удалить)"
         
         keyboard = [["Отменить"]]
-        await chat.send_keyboad(f"💀 Введите номер формата, который вы хотите удалить:\n{format_list}\n\n🔎 Можете заметить, что здесь список форматов неполный, так как стандартные форматы удалить нельзя.", keyboard)
+        keyboard_keys = [["a"]]
+        await chat.send_keyboad(f"💀 Введите номер формата, который вы хотите удалить:\n{format_list}\n\n🔎 Можете заметить, что здесь список форматов неполный, так как стандартные форматы удалить нельзя.", keyboard, keyboard_keys)
         return chat.move_next(context, self.waiting_remove_format_state)
     
     async def wrong_select_format_to_remove_messsage(self, message: dict, context: dict, chat: ChatInterface):
@@ -258,7 +262,8 @@ class HrLLMCommand(TranscibeLLMCommand):
         if len(removeable_report_format_keys) == 0:
             format_list = "(нет форматов, которые можно удалить)"
         keyboard = [["Отменить"]]
-        await chat.send_keyboad(f"⚙️ Вы отправили некорректный номер формата. Введите номер формата, который вы хотите удалить:\n{format_list}", keyboard)
+        keyboard_keys = [["a"]]
+        await chat.send_keyboad(f"⚙️ Вы отправили некорректный номер формата. Введите номер формата, который вы хотите удалить:\n{format_list}", keyboard, keyboard_keys)
         return chat.stay_on_state(context)
     
     async def select_report_format_to_remove(self, message: dict, context: dict, chat: ChatInterface):
@@ -285,7 +290,7 @@ class HrLLMCommand(TranscibeLLMCommand):
         states = super().get_conversation_states()
         states.update({
             self.waiting_format_state: [
-                MessageHandler(self.filter_factory.create_filter("equal", dict(messages=["Добавить новый формат", "a"])), self.response_format_name_command),
+                MessageHandler(self.filter_factory.create_filter("equal", dict(messages=["Добавить новый формат", "a", "а"])), self.response_format_name_command),
                 MessageHandler(self.filter_factory.create_filter("equal", dict(messages=["Удалить существующий формат", "b"])), self.response_remove_format_name_command),
                 MessageHandler(self.filter_factory.create_filter("regex", dict(pattern=r"\d+")), self.select_report_format),
                 MessageHandler(self.filter_factory.create_filter("all"), self.wrong_select_format_messsage)
@@ -299,7 +304,7 @@ class HrLLMCommand(TranscibeLLMCommand):
                 MessageHandler(self.filter_factory.create_filter("all"), self.wrong_format_text_message)
             ],
             self.waiting_remove_format_state: [
-                MessageHandler(self.filter_factory.create_filter("equal", dict(messages=["Отменить"])), self.cancel_remove_format_command),
+                MessageHandler(self.filter_factory.create_filter("equal", dict(messages=["Отменить", "a", "а"])), self.cancel_remove_format_command),
                 MessageHandler(self.filter_factory.create_filter("regex", dict(pattern=r"\d+")), self.select_report_format_to_remove),
                 MessageHandler(self.filter_factory.create_filter("all"), self.wrong_select_format_to_remove_messsage)
             ]

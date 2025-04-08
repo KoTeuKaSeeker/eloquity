@@ -13,6 +13,5 @@ app.mount("/static", StaticFiles(directory=upload_dir), name=upload_dir)
 
 app.include_router(tasks_router)
 
-
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8001, reload=True)
