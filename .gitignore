@@ -27,10 +27,12 @@ static/
 # Integration
 wandb
 
-models
-outputs
-tmp/
+/models/
+/outputs/
+/tmp/
 
-data/
+/data/
 
-logs/
+/logs/
+
+/static/
